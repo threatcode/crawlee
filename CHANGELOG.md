@@ -3,6 +3,53 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.10.1](https://github.com/apify/crawlee/compare/v3.10.0...v3.10.1) (2024-05-23)
+
+
+### Bug Fixes
+
+* adjust `URL_NO_COMMAS_REGEX` regexp to allow single character hostnames ([#2492](https://github.com/apify/crawlee/issues/2492)) ([ec802e8](https://github.com/apify/crawlee/commit/ec802e85f54022616e5bdcc1a6fd1bd43e1b3ace)), closes [#2487](https://github.com/apify/crawlee/issues/2487)
+* investigate and temp fix for possible 0-concurrency bug in RQv2 ([#2494](https://github.com/apify/crawlee/issues/2494)) ([4ebe820](https://github.com/apify/crawlee/commit/4ebe820573b269c2d0a6eff20cfd7787debc63c0))
+* provide URLs to the error snapshot ([#2482](https://github.com/apify/crawlee/issues/2482)) ([7f64145](https://github.com/apify/crawlee/commit/7f64145308dfdb3909d4fcf945759a7d6344e2f5)), closes [/github.com/apify/apify-sdk-js/blob/master/packages/apify/src/key_value_store.ts#L25](https://github.com//github.com/apify/apify-sdk-js/blob/master/packages/apify/src/key_value_store.ts/issues/L25)
+
+
+
+
+
+# [3.10.0](https://github.com/apify/crawlee/compare/v3.9.2...v3.10.0) (2024-05-16)
+
+
+### Bug Fixes
+
+* `EnqueueStrategy.All` erroring with links using unsupported protocols ([#2389](https://github.com/apify/crawlee/issues/2389)) ([8db3908](https://github.com/apify/crawlee/commit/8db39080b7711ba3c27dff7fce1170ddb0ee3d05))
+* conversion between tough cookies and browser pool cookies ([#2443](https://github.com/apify/crawlee/issues/2443)) ([74f73ab](https://github.com/apify/crawlee/commit/74f73ab77a94ecd285d587b7b3532443deda07b4))
+* fire local `SystemInfo` events every second ([#2454](https://github.com/apify/crawlee/issues/2454)) ([1fa9a66](https://github.com/apify/crawlee/commit/1fa9a66388846505f84dcdea0393e7eaaebf84c3))
+* use createSessionFunction when loading Session from persisted state ([#2444](https://github.com/apify/crawlee/issues/2444)) ([3c56b4c](https://github.com/apify/crawlee/commit/3c56b4ca1efe327138aeb32c39dfd9dd67b6aceb))
+* do not drop statistics on migration/resurrection/resume ([#2462](https://github.com/apify/crawlee/issues/2462)) ([8ce7dd4](https://github.com/apify/crawlee/commit/8ce7dd4ae6a3718dac95e784a53bd5661c827edc))
+* double tier decrement in tiered proxy ([#2468](https://github.com/apify/crawlee/issues/2468)) ([3a8204b](https://github.com/apify/crawlee/commit/3a8204ba417936570ec5569dc4e4eceed79939c1))
+* Fixed double extension for screenshots ([#2419](https://github.com/apify/crawlee/issues/2419)) ([e8b39c4](https://github.com/apify/crawlee/commit/e8b39c41764726280c995e52fa7d79a9240d993e)), closes [#1980](https://github.com/apify/crawlee/issues/1980)
+* malformed sitemap url when sitemap index child contains querystring ([#2430](https://github.com/apify/crawlee/issues/2430)) ([e4cd41c](https://github.com/apify/crawlee/commit/e4cd41c49999af270fbe2476a61d92c8e3502463))
+* return true when robots.isAllowed returns undefined ([#2439](https://github.com/apify/crawlee/issues/2439)) ([6f541f8](https://github.com/apify/crawlee/commit/6f541f8c4ea9b1e94eb506383019397676fd79fe)), closes [#2437](https://github.com/apify/crawlee/issues/2437)
+* sitemap `content-type` check breaks on `content-type` parameters ([#2442](https://github.com/apify/crawlee/issues/2442)) ([db7d372](https://github.com/apify/crawlee/commit/db7d37256a49820e3e584165fff42377042ec258))
+
+
+### Features
+
+* add `FileDownload` "crawler" ([#2435](https://github.com/apify/crawlee/issues/2435)) ([d73756b](https://github.com/apify/crawlee/commit/d73756bb225d9ed8f58cf0a3b2e0ce96f6188863))
+* implement ErrorSnapshotter for error context capture ([#2332](https://github.com/apify/crawlee/issues/2332)) ([e861dfd](https://github.com/apify/crawlee/commit/e861dfdb451ae32fb1e0c7749c6b59744654b303)), closes [#2280](https://github.com/apify/crawlee/issues/2280)
+* make `RequestQueue` v2 the default queue, see more on [Apify blog](https://blog.apify.com/new-apify-request-queue/) ([#2390](https://github.com/apify/crawlee/issues/2390)) ([41ae8ab](https://github.com/apify/crawlee/commit/41ae8abec1da811ae0750ac2d298e77c1e3b7b55)), closes [#2388](https://github.com/apify/crawlee/issues/2388)
+
+
+### Performance Improvements
+
+* improve scaling based on memory ([#2459](https://github.com/apify/crawlee/issues/2459)) ([2d5d443](https://github.com/apify/crawlee/commit/2d5d443da5fa701b21aec003d4d84797882bc175))
+* optimize `RequestList` memory footprint ([#2466](https://github.com/apify/crawlee/issues/2466)) ([12210bd](https://github.com/apify/crawlee/commit/12210bd191b50c76ecca23ea18f3deda7b1517c6))
+* optimize adding large amount of requests via `crawler.addRequests()` ([#2456](https://github.com/apify/crawlee/issues/2456)) ([6da86a8](https://github.com/apify/crawlee/commit/6da86a85d848cd1cf860a28e5f077b8b14cdb213))
+
+
+
+
+
 ## [3.9.2](https://github.com/apify/crawlee/compare/v3.9.1...v3.9.2) (2024-04-17)
 
 

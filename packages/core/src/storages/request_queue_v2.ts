@@ -3,10 +3,7 @@ import type { Dictionary } from '@crawlee/types';
 import { checkStorageAccess } from './access_checking';
 import type { RequestQueueOperationInfo, RequestProviderOptions } from './request_provider';
 import { RequestProvider } from './request_provider';
-import {
-    STORAGE_CONSISTENCY_DELAY_MILLIS,
-    getRequestId,
-} from './utils';
+import { STORAGE_CONSISTENCY_DELAY_MILLIS, getRequestId } from './utils';
 import { Configuration } from '../configuration';
 import { EventType } from '../events';
 import type { Request } from '../request';
@@ -21,16 +18,53 @@ const MAX_CACHED_REQUESTS = 2_000_000;
  */
 const RECENTLY_HANDLED_CACHE_SIZE = 1000;
 
-class RequestQueue extends RequestProvider {
+/**
+ * Represents a queue of URLs to crawl, which is used for deep crawling of websites
+ * where you start with several URLs and then recursively
+ * follow links to other pages. The data structure supports both breadth-first and depth-first crawling orders.
+ *
+ * Each URL is represented using an instance of the {@apilink Request} class.
+ * The queue can only contain unique URLs. More precisely, it can only contain {@apilink Request} instances
+ * with distinct `uniqueKey` properties. By default, `uniqueKey` is generated from the URL, but it can also be overridden.
+ * To add a single URL multiple times to the queue,
+ * corresponding {@apilink Request} objects will need to have different `uniqueKey` properties.
+ *
+ * Do not instantiate this class directly, use the {@apilink RequestQueue.open} function instead.
+ *
+ * `RequestQueue` is used by {@apilink BasicCrawler}, {@apilink CheerioCrawler}, {@apilink PuppeteerCrawler}
+ * and {@apilink PlaywrightCrawler} as a source of URLs to crawl.
+ * Unlike {@apilink RequestList}, `RequestQueue` supports dynamic adding and removing of requests.
+ * On the other hand, the queue is not optimized for operations that add or remove a large number of URLs in a batch.
+ *
+ * **Example usage:**
+ *
+ * ```javascript
+ * // Open the default request queue associated with the crawler run
+ * const queue = await RequestQueue.open();
+ *
+ * // Open a named request queue
+ * const queueWithName = await RequestQueue.open('some-name');
+ *
+ * // Enqueue few requests
+ * await queue.addRequest({ url: 'http://example.com/aaa' });
+ * await queue.addRequest({ url: 'http://example.com/bbb' });
+ * await queue.addRequest({ url: 'http://example.com/foo/bar' }, { forefront: true });
+ * ```
+ * @category Sources
+ */
+export class RequestQueue extends RequestProvider {
     private _listHeadAndLockPromise: Promise<void> | null = null;
 
     constructor(options: RequestProviderOptions, config = Configuration.getGlobalConfig()) {
-        super({
-            ...options,
-            logPrefix: 'RequestQueue2',
-            recentlyHandledRequestsMaxSize: RECENTLY_HANDLED_CACHE_SIZE,
-            requestCacheMaxSize: MAX_CACHED_REQUESTS,
-        }, config);
+        super(
+            {
+                ...options,
+                logPrefix: 'RequestQueue2',
+                recentlyHandledRequestsMaxSize: RECENTLY_HANDLED_CACHE_SIZE,
+                requestCacheMaxSize: MAX_CACHED_REQUESTS,
+            },
+            config,
+        );
 
         const eventManager = config.getEventManager();
 
@@ -47,8 +81,6 @@ class RequestQueue extends RequestProvider {
      * Caches information about request to beware of unneeded addRequest() calls.
      */
     protected override _cacheRequest(cacheKey: string, queueOperationInfo: RequestQueueOperationInfo): void {
-        checkStorageAccess();
-
         super._cacheRequest(cacheKey, queueOperationInfo);
 
         this.requestCache.remove(queueOperationInfo.requestId);
@@ -63,24 +95,12 @@ class RequestQueue extends RequestProvider {
     }
 
     /**
-     * Returns a next request in the queue to be processed, or `null` if there are no more pending requests.
-     *
-     * Once you successfully finish processing of the request, you need to call
-     * {@apilink RequestQueue.markRequestHandled}
-     * to mark the request as handled in the queue. If there was some error in processing the request,
-     * call {@apilink RequestQueue.reclaimRequest} instead,
-     * so that the queue will give the request to some other consumer in another call to the `fetchNextRequest` function.
-     *
-     * Note that the `null` return value doesn't mean the queue processing finished,
-     * it means there are currently no pending requests.
-     * To check whether all requests in queue were finished,
-     * use {@apilink RequestQueue.isFinished} instead.
-     *
-     * @returns
-     *   Returns the request object or `null` if there are no more pending requests.
+     * @inheritDoc
      */
     override async fetchNextRequest<T extends Dictionary = Dictionary>(): Promise<Request<T> | null> {
         checkStorageAccess();
+
+        this.lastActivity = new Date();
 
         await this.ensureHeadIsNonEmpty();
 
@@ -121,7 +141,9 @@ class RequestQueue extends RequestProvider {
         //    into the queueHeadDict straight again. After the interval expires, fetchNextRequest()
         //    will try to fetch this request again, until it eventually appears in the main table.
         if (!request) {
-            this.log.debug('Cannot find a request from the beginning of queue or lost lock, will be retried later', { nextRequestId });
+            this.log.debug('Cannot find a request from the beginning of queue or lost lock, will be retried later', {
+                nextRequestId,
+            });
 
             setTimeout(() => {
                 this.inProgress.delete(nextRequestId);
@@ -143,9 +165,12 @@ class RequestQueue extends RequestProvider {
         return request;
     }
 
-    override async reclaimRequest(...args: Parameters<RequestProvider['reclaimRequest']>): ReturnType<RequestProvider['reclaimRequest']> {
-        checkStorageAccess();
-
+    /**
+     * @inheritDoc
+     */
+    override async reclaimRequest(
+        ...args: Parameters<RequestProvider['reclaimRequest']>
+    ): ReturnType<RequestProvider['reclaimRequest']> {
         const res = await super.reclaimRequest(...args);
 
         if (res) {
@@ -188,8 +213,6 @@ class RequestQueue extends RequestProvider {
     }
 
     private async _listHeadAndLock(): Promise<void> {
-        checkStorageAccess();
-
         const headData = await this.client.listAndLockHead({ limit: 25, lockSecs: this.requestLockSecs });
 
         for (const { id, uniqueKey } of headData.items) {
@@ -223,7 +246,9 @@ class RequestQueue extends RequestProvider {
         }
     }
 
-    private async getOrHydrateRequest<T extends Dictionary = Dictionary>(requestId: string): Promise<Request<T> | null> {
+    private async getOrHydrateRequest<T extends Dictionary = Dictionary>(
+        requestId: string,
+    ): Promise<Request<T> | null> {
         checkStorageAccess();
 
         const cachedEntry = this.requestCache.get(requestId);
@@ -308,24 +333,23 @@ class RequestQueue extends RequestProvider {
     }
 
     private async _prolongRequestLock(requestId: string): Promise<Date | null> {
-        checkStorageAccess();
-
         try {
             const res = await this.client.prolongRequestLock(requestId, { lockSecs: this.requestLockSecs });
             return res.lockExpiresAt;
         } catch (err: any) {
             // Most likely we do not own the lock anymore
-            this.log.warning(`Failed to prolong lock for cached request ${requestId}, either lost the lock or the request was already handled\n`, {
-                err,
-            });
+            this.log.warning(
+                `Failed to prolong lock for cached request ${requestId}, either lost the lock or the request was already handled\n`,
+                {
+                    err,
+                },
+            );
 
             return null;
         }
     }
 
     protected override _reset() {
-        checkStorageAccess();
-
         super._reset();
         this._listHeadAndLockPromise = null;
     }
@@ -335,8 +359,6 @@ class RequestQueue extends RequestProvider {
     }
 
     protected async _clearPossibleLocks() {
-        checkStorageAccess();
-
         this.queuePausedForMigration = true;
         let requestId: string | null;
 
@@ -350,9 +372,10 @@ class RequestQueue extends RequestProvider {
         }
     }
 
+    /**
+     * @inheritDoc
+     */
     static override async open(...args: Parameters<typeof RequestProvider.open>): Promise<RequestQueue> {
         return super.open(...args) as Promise<RequestQueue>;
     }
 }
-
-export { RequestQueue as RequestQueueV2 };

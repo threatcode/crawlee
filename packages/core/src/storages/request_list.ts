@@ -9,8 +9,7 @@ import type { EventManager } from '../events';
 import { EventType } from '../events';
 import { log } from '../log';
 import type { ProxyConfiguration } from '../proxy_configuration';
-import type { InternalSource, RequestOptions, Source } from '../request';
-import { Request } from '../request';
+import { type InternalSource, type RequestOptions, Request, type Source } from '../request';
 import { createDeserialize, serializeArray } from '../serialization';
 
 /** @internal */
@@ -98,10 +97,10 @@ export interface RequestListOptions {
     sourcesFunction?: RequestListSourcesFunction;
 
     /**
-    * Used to pass the proxy configuration for the `requestsFromUrl` objects.
-    * Takes advantage of the internal address rotation and authentication process.
-    * If undefined, the `requestsFromUrl` requests will be made without proxy.
-    */
+     * Used to pass the proxy configuration for the `requestsFromUrl` objects.
+     * Takes advantage of the internal address rotation and authentication process.
+     * If undefined, the `requestsFromUrl` requests will be made without proxy.
+     */
     proxyConfiguration?: ProxyConfiguration;
 
     /**
@@ -238,7 +237,7 @@ export class RequestList {
      * All requests in the array have distinct uniqueKey!
      * @internal
      */
-    requests: Request[] = [];
+    requests: (Request | RequestOptions)[] = [];
 
     /** Index to the next item in requests array to fetch. All previous requests are either handled or in progress. */
     private nextIndex = 0;
@@ -300,21 +299,27 @@ export class RequestList {
         } = options;
 
         if (!(sources || sourcesFunction)) {
-            throw new ArgumentError('At least one of "sources" or "sourcesFunction" must be provided.', this.constructor);
+            throw new ArgumentError(
+                'At least one of "sources" or "sourcesFunction" must be provided.',
+                this.constructor,
+            );
         }
-        ow(options, ow.object.exactShape({
-            sources: ow.optional.array, // check only for array and not subtypes to avoid iteration over the whole thing
-            sourcesFunction: ow.optional.function,
-            persistStateKey: ow.optional.string,
-            persistRequestsKey: ow.optional.string,
-            state: ow.optional.object.exactShape({
-                nextIndex: ow.number,
-                nextUniqueKey: ow.string,
-                inProgress: ow.object,
+        ow(
+            options,
+            ow.object.exactShape({
+                sources: ow.optional.array, // check only for array and not subtypes to avoid iteration over the whole thing
+                sourcesFunction: ow.optional.function,
+                persistStateKey: ow.optional.string,
+                persistRequestsKey: ow.optional.string,
+                state: ow.optional.object.exactShape({
+                    nextIndex: ow.number,
+                    nextUniqueKey: ow.string,
+                    inProgress: ow.object,
+                }),
+                keepDuplicateUrls: ow.optional.boolean,
+                proxyConfiguration: ow.optional.object,
             }),
-            keepDuplicateUrls: ow.optional.boolean,
-            proxyConfiguration: ow.optional.object,
-        }));
+        );
 
         this.persistStateKey = persistStateKey ? `SDK_${persistStateKey}` : persistStateKey;
         this.persistRequestsKey = persistRequestsKey ? `SDK_${persistRequestsKey}` : persistRequestsKey;
@@ -472,16 +477,22 @@ export class RequestList {
         if (state.nextIndex > this.requests.length) {
             throw new Error('The state object is not consistent with RequestList, too few requests loaded.');
         }
-        if (state.nextIndex < this.requests.length
-            && this.requests[state.nextIndex].uniqueKey !== state.nextUniqueKey) {
-            throw new Error('The state object is not consistent with RequestList the order of URLs seems to have changed.');
+        if (
+            state.nextIndex < this.requests.length &&
+            this.requests[state.nextIndex].uniqueKey !== state.nextUniqueKey
+        ) {
+            throw new Error(
+                'The state object is not consistent with RequestList the order of URLs seems to have changed.',
+            );
         }
 
         const deleteFromInProgress: string[] = [];
         state.inProgress.forEach((uniqueKey) => {
             const index = this.uniqueKeyToIndex[uniqueKey];
             if (typeof index !== 'number') {
-                throw new Error('The state object is not consistent with RequestList. Unknown uniqueKey is present in the state.');
+                throw new Error(
+                    'The state object is not consistent with RequestList. Unknown uniqueKey is present in the state.',
+                );
             }
             if (index >= state.nextIndex) {
                 deleteFromInProgress.push(uniqueKey);
@@ -505,9 +516,12 @@ export class RequestList {
         // As a workaround, we just remove all inProgress requests whose index >= nextIndex,
         // since they will be crawled again.
         if (deleteFromInProgress.length) {
-            this.log.warning('RequestList\'s in-progress field is not consistent, skipping invalid in-progress entries', {
-                deleteFromInProgress,
-            });
+            this.log.warning(
+                "RequestList's in-progress field is not consistent, skipping invalid in-progress entries",
+                {
+                    deleteFromInProgress,
+                },
+            );
             for (const uniqueKey of deleteFromInProgress) {
                 this.inProgress.delete(uniqueKey);
             }
@@ -550,9 +564,7 @@ export class RequestList {
 
         return {
             nextIndex: this.nextIndex,
-            nextUniqueKey: this.nextIndex < this.requests.length
-                ? this.requests[this.nextIndex].uniqueKey
-                : null,
+            nextUniqueKey: this.nextIndex < this.requests.length ? this.requests[this.nextIndex].uniqueKey! : null,
             inProgress: [...this.inProgress],
         };
     }
@@ -593,19 +605,29 @@ export class RequestList {
         if (uniqueKey) {
             this.reclaimed.delete(uniqueKey);
             const index = this.uniqueKeyToIndex[uniqueKey];
-            return this.requests[index];
+            return this.ensureRequest(this.requests[index], index);
         }
 
         // Otherwise return next request.
         if (this.nextIndex < this.requests.length) {
-            const request = this.requests[this.nextIndex];
-            this.inProgress.add(request.uniqueKey);
+            const index = this.nextIndex;
+            const request = this.requests[index];
+            this.inProgress.add(request.uniqueKey!);
             this.nextIndex++;
             this.isStatePersisted = false;
-            return request;
+            return this.ensureRequest(request, index);
         }
 
         return null;
+    }
+
+    private ensureRequest(requestLike: Request | RequestOptions, index: number): Request {
+        if (requestLike instanceof Request) {
+            return requestLike;
+        }
+
+        this.requests[index] = new Request(requestLike);
+        return this.requests[index] as Request;
     }
 
     /**
@@ -674,7 +696,11 @@ export class RequestList {
         // Download remote resource and parse URLs.
         let urlsArr;
         try {
-            urlsArr = await this._downloadListOfUrls({ url: requestsFromUrl, urlRegExp: regex, proxyUrl: await this.proxyConfiguration?.newUrl() });
+            urlsArr = await this._downloadListOfUrls({
+                url: requestsFromUrl,
+                urlRegExp: regex,
+                proxyUrl: await this.proxyConfiguration?.newUrl(),
+            });
         } catch (err) {
             throw new Error(`Cannot fetch a request list from ${requestsFromUrl}: ${err}`);
         }
@@ -694,19 +720,21 @@ export class RequestList {
      * of a `Request`, then the function creates a `Request` instance.
      */
     protected _addRequest(source: RequestListSource) {
-        let request;
+        let request: Request | RequestOptions;
         const type = typeof source;
+
         if (type === 'string') {
-            request = new Request({ url: source as string });
+            request = { url: source as string };
         } else if (source instanceof Request) {
             request = source;
         } else if (source && type === 'object') {
-            request = new Request(source as RequestOptions);
+            request = source as RequestOptions;
         } else {
             throw new Error(`Cannot create Request from type: ${type}`);
         }
 
         const hasUniqueKey = Reflect.has(Object(source), 'uniqueKey');
+        request.uniqueKey ??= Request.computeUniqueKey(request as any);
 
         // Add index to uniqueKey if duplicates are to be kept
         if (this.keepDuplicateUrls && !hasUniqueKey) {
@@ -721,7 +749,9 @@ export class RequestList {
             this.uniqueKeyToIndex[uniqueKey] = this.requests.length;
             this.requests.push(request);
         } else if (this.keepDuplicateUrls) {
-            this.log.warning(`Duplicate uniqueKey: ${uniqueKey} found while the keepDuplicateUrls option was set. Check your sources' unique keys.`);
+            this.log.warning(
+                `Duplicate uniqueKey: ${uniqueKey} found while the keepDuplicateUrls option was set. Check your sources' unique keys.`,
+            );
         }
     }
 
@@ -731,7 +761,7 @@ export class RequestList {
      */
     protected _ensureUniqueKeyValid(uniqueKey: string): void {
         if (typeof uniqueKey !== 'string' || !uniqueKey) {
-            throw new Error('Request object\'s uniqueKey must be a non-empty string');
+            throw new Error("Request object's uniqueKey must be a non-empty string");
         }
     }
 
@@ -752,7 +782,9 @@ export class RequestList {
      */
     protected _ensureIsInitialized(): void {
         if (!this.isInitialized) {
-            throw new Error('RequestList is not initialized; you must call "await requestList.initialize()" before using it!');
+            throw new Error(
+                'RequestList is not initialized; you must call "await requestList.initialize()" before using it!',
+            );
         }
     }
 
@@ -844,7 +876,10 @@ export class RequestList {
 
         ow(listName, ow.optional.any(ow.string, ow.null));
         ow(sources, ow.array);
-        ow(options, ow.object.is((v) => !Array.isArray(v)));
+        ow(
+            options,
+            ow.object.is((v) => !Array.isArray(v)),
+        );
 
         const rl = new RequestList({
             ...options,
@@ -860,7 +895,9 @@ export class RequestList {
     /**
      * @internal wraps public utility for mocking purposes
      */
-    private async _downloadListOfUrls(options: { url: string; urlRegExp?: RegExp; proxyUrl?: string }): Promise<string[]> {
+    private async _downloadListOfUrls(options: { url: string; urlRegExp?: RegExp; proxyUrl?: string }): Promise<
+        string[]
+    > {
         return downloadListOfUrls(options);
     }
 }
@@ -882,7 +919,6 @@ export class RequestList {
  * ```
  */
 export interface RequestListState {
-
     /** Position of the next request to be processed. */
     nextIndex: number;
 
@@ -891,7 +927,6 @@ export interface RequestListState {
 
     /** Array of request keys representing those that being processed at the moment. */
     inProgress: string[];
-
 }
 
 type RequestListSource = string | Source;

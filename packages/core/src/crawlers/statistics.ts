@@ -1,6 +1,6 @@
-import { ErrorTracker } from '@crawlee/utils';
 import ow from 'ow';
 
+import { ErrorTracker } from './error_tracker';
 import { Configuration } from '../configuration';
 import type { EventManager } from '../events/event_manager';
 import { EventType } from '../events/event_manager';
@@ -66,12 +66,12 @@ export class Statistics {
     /**
      * An error tracker for final retry errors.
      */
-    errorTracker = new ErrorTracker(errorTrackerConfig);
+    errorTracker: ErrorTracker;
 
     /**
      * An error tracker for retry errors prior to the final retry.
      */
-    errorTrackerRetry = new ErrorTracker(errorTrackerConfig);
+    errorTrackerRetry: ErrorTracker;
 
     /**
      * Statistic instance id.
@@ -109,13 +109,17 @@ export class Statistics {
      * @internal
      */
     constructor(options: StatisticsOptions = {}) {
-        ow(options, ow.object.exactShape({
-            logIntervalSecs: ow.optional.number,
-            logMessage: ow.optional.string,
-            keyValueStore: ow.optional.object,
-            config: ow.optional.object,
-            persistenceOptions: ow.optional.object,
-        }));
+        ow(
+            options,
+            ow.object.exactShape({
+                logIntervalSecs: ow.optional.number,
+                logMessage: ow.optional.string,
+                keyValueStore: ow.optional.object,
+                config: ow.optional.object,
+                persistenceOptions: ow.optional.object,
+                saveErrorSnapshots: ow.optional.boolean,
+            }),
+        );
 
         const {
             logIntervalSecs = 60,
@@ -125,8 +129,11 @@ export class Statistics {
             persistenceOptions = {
                 enable: true,
             },
+            saveErrorSnapshots = false,
         } = options;
 
+        this.errorTracker = new ErrorTracker({ ...errorTrackerConfig, saveErrorSnapshots });
+        this.errorTrackerRetry = new ErrorTracker({ ...errorTrackerConfig, saveErrorSnapshots });
         this.logIntervalMillis = logIntervalSecs * 1000;
         this.logMessage = logMessage;
         this.keyValueStore = keyValueStore;
@@ -222,8 +229,10 @@ export class Statistics {
         this.state.requestsFinished++;
         this.state.requestTotalFinishedDurationMillis += jobDurationMillis;
         this._saveRetryCountForJob(job);
-        if (jobDurationMillis < this.state.requestMinDurationMillis) this.state.requestMinDurationMillis = jobDurationMillis;
-        if (jobDurationMillis > this.state.requestMaxDurationMillis) this.state.requestMaxDurationMillis = jobDurationMillis;
+        if (jobDurationMillis < this.state.requestMinDurationMillis)
+            this.state.requestMinDurationMillis = jobDurationMillis;
+        if (jobDurationMillis > this.state.requestMaxDurationMillis)
+            this.state.requestMaxDurationMillis = jobDurationMillis;
         this.requestsInProgress.delete(id);
     }
 
@@ -255,7 +264,8 @@ export class Statistics {
 
         return {
             requestAvgFailedDurationMillis: Math.round(requestTotalFailedDurationMillis / requestsFailed) || Infinity,
-            requestAvgFinishedDurationMillis: Math.round(requestTotalFinishedDurationMillis / requestsFinished) || Infinity,
+            requestAvgFinishedDurationMillis:
+                Math.round(requestTotalFinishedDurationMillis / requestsFinished) || Infinity,
             requestsFinishedPerMinute: Math.round(requestsFinished / totalMinutes) || 0,
             requestsFailedPerMinute: Math.floor(requestsFailed / totalMinutes) || 0,
             requestTotalDurationMillis: requestTotalFinishedDurationMillis + requestTotalFailedDurationMillis,
@@ -392,7 +402,9 @@ export class Statistics {
         const result = {
             ...this.state,
             crawlerLastStartTimestamp: this.instanceStart,
-            crawlerFinishedAt: this.state.crawlerFinishedAt ? new Date(this.state.crawlerFinishedAt).toISOString() : null,
+            crawlerFinishedAt: this.state.crawlerFinishedAt
+                ? new Date(this.state.crawlerFinishedAt).toISOString()
+                : null,
             crawlerStartedAt: this.state.crawlerStartedAt ? new Date(this.state.crawlerStartedAt).toISOString() : null,
             requestRetryHistogram: this.requestRetryHistogram,
             statsId: this.id,
@@ -444,6 +456,12 @@ export interface StatisticsOptions {
      * Control how and when to persist the statistics.
      */
     persistenceOptions?: PersistenceOptions;
+
+    /**
+     * Save HTML snapshot (and a screenshot if possible) when an error occurs.
+     * @default false
+     */
+    saveErrorSnapshots?: boolean;
 }
 
 /**
@@ -454,11 +472,8 @@ export interface StatisticPersistedState extends Omit<StatisticState, 'statsPers
     statsId: number;
     requestAvgFailedDurationMillis: number;
     requestAvgFinishedDurationMillis: number;
-    requestsFinishedPerMinute: number;
-    requestsFailedPerMinute: number;
     requestTotalDurationMillis: number;
     requestsTotal: number;
-    crawlerRuntimeMillis: number;
     crawlerLastStartTimestamp: number;
     statsPersistedAt: string;
 }

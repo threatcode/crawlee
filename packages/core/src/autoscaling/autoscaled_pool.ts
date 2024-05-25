@@ -214,25 +214,28 @@ export class AutoscaledPool {
         options: AutoscaledPoolOptions,
         private readonly config = Configuration.getGlobalConfig(),
     ) {
-        ow(options, ow.object.exactShape({
-            runTaskFunction: ow.function,
-            isFinishedFunction: ow.function,
-            isTaskReadyFunction: ow.function,
-            maxConcurrency: ow.optional.number.integer.greaterThanOrEqual(1),
-            minConcurrency: ow.optional.number.integer.greaterThanOrEqual(1),
-            desiredConcurrency: ow.optional.number.integer.greaterThanOrEqual(1),
-            desiredConcurrencyRatio: ow.optional.number.greaterThan(0).lessThan(1),
-            scaleUpStepRatio: ow.optional.number.greaterThan(0).lessThan(1),
-            scaleDownStepRatio: ow.optional.number.greaterThan(0).lessThan(1),
-            maybeRunIntervalSecs: ow.optional.number.greaterThan(0),
-            loggingIntervalSecs: ow.any(ow.number.greaterThan(0), ow.nullOrUndefined),
-            autoscaleIntervalSecs: ow.optional.number.greaterThan(0),
-            taskTimeoutSecs: ow.optional.number.greaterThanOrEqual(0),
-            systemStatusOptions: ow.optional.object,
-            snapshotterOptions: ow.optional.object,
-            log: ow.optional.object,
-            maxTasksPerMinute: ow.optional.number.integerOrInfinite.greaterThanOrEqual(1),
-        }));
+        ow(
+            options,
+            ow.object.exactShape({
+                runTaskFunction: ow.function,
+                isFinishedFunction: ow.function,
+                isTaskReadyFunction: ow.function,
+                maxConcurrency: ow.optional.number.integer.greaterThanOrEqual(1),
+                minConcurrency: ow.optional.number.integer.greaterThanOrEqual(1),
+                desiredConcurrency: ow.optional.number.integer.greaterThanOrEqual(1),
+                desiredConcurrencyRatio: ow.optional.number.greaterThan(0).lessThan(1),
+                scaleUpStepRatio: ow.optional.number.greaterThan(0).lessThan(1),
+                scaleDownStepRatio: ow.optional.number.greaterThan(0).lessThan(1),
+                maybeRunIntervalSecs: ow.optional.number.greaterThan(0),
+                loggingIntervalSecs: ow.any(ow.number.greaterThan(0), ow.nullOrUndefined),
+                autoscaleIntervalSecs: ow.optional.number.greaterThan(0),
+                taskTimeoutSecs: ow.optional.number.greaterThanOrEqual(0),
+                systemStatusOptions: ow.optional.object,
+                snapshotterOptions: ow.optional.object,
+                log: ow.optional.object,
+                maxTasksPerMinute: ow.optional.number.integerOrInfinite.greaterThanOrEqual(1),
+            }),
+        );
 
         const {
             runTaskFunction,
@@ -241,9 +244,9 @@ export class AutoscaledPool {
             maxConcurrency = 200,
             minConcurrency = 1,
             desiredConcurrency,
-            desiredConcurrencyRatio = 0.90,
-            scaleUpStepRatio = 0.05,
-            scaleDownStepRatio = 0.05,
+            desiredConcurrencyRatio = 0.9,
+            scaleUpStepRatio = 0.1,
+            scaleDownStepRatio = 0.1,
             maybeRunIntervalSecs = 0.5,
             loggingIntervalSecs = 60,
             taskTimeoutSecs = 0,
@@ -421,8 +424,10 @@ export class AutoscaledPool {
             let timeout: NodeJS.Timeout;
             if (timeoutSecs) {
                 timeout = setTimeout(() => {
-                    const err = new Error('The pool\'s running tasks did not finish'
-                        + `in ${timeoutSecs} secs after pool.pause() invocation.`);
+                    const err = new Error(
+                        "The pool's running tasks did not finish" +
+                            `in ${timeoutSecs} secs after pool.pause() invocation.`,
+                    );
                     reject(err);
                 }, timeoutSecs);
             }

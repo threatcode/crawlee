@@ -3,6 +3,35 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.10.1](https://github.com/apify/crawlee/compare/v3.10.0...v3.10.1) (2024-05-23)
+
+
+### Bug Fixes
+
+* adjust `URL_NO_COMMAS_REGEX` regexp to allow single character hostnames ([#2492](https://github.com/apify/crawlee/issues/2492)) ([ec802e8](https://github.com/apify/crawlee/commit/ec802e85f54022616e5bdcc1a6fd1bd43e1b3ace)), closes [#2487](https://github.com/apify/crawlee/issues/2487)
+
+
+
+
+
+# [3.10.0](https://github.com/apify/crawlee/compare/v3.9.2...v3.10.0) (2024-05-16)
+
+
+### Bug Fixes
+
+* malformed sitemap url when sitemap index child contains querystring ([#2430](https://github.com/apify/crawlee/issues/2430)) ([e4cd41c](https://github.com/apify/crawlee/commit/e4cd41c49999af270fbe2476a61d92c8e3502463))
+* return true when robots.isAllowed returns undefined ([#2439](https://github.com/apify/crawlee/issues/2439)) ([6f541f8](https://github.com/apify/crawlee/commit/6f541f8c4ea9b1e94eb506383019397676fd79fe)), closes [#2437](https://github.com/apify/crawlee/issues/2437)
+* sitemap `content-type` check breaks on `content-type` parameters ([#2442](https://github.com/apify/crawlee/issues/2442)) ([db7d372](https://github.com/apify/crawlee/commit/db7d37256a49820e3e584165fff42377042ec258))
+
+
+### Features
+
+* implement ErrorSnapshotter for error context capture ([#2332](https://github.com/apify/crawlee/issues/2332)) ([e861dfd](https://github.com/apify/crawlee/commit/e861dfdb451ae32fb1e0c7749c6b59744654b303)), closes [#2280](https://github.com/apify/crawlee/issues/2280)
+
+
+
+
+
 ## [3.9.2](https://github.com/apify/crawlee/compare/v3.9.1...v3.9.2) (2024-04-17)
 
 

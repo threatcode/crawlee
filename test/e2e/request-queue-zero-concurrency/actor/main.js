@@ -1,5 +1,5 @@
+import { CheerioCrawler, log, RequestQueueV1 } from '@crawlee/cheerio';
 import { Actor } from 'apify';
-import { CheerioCrawler, log, RequestQueue } from '@crawlee/cheerio';
 
 log.setLevel(log.LEVELS.DEBUG);
 
@@ -7,12 +7,15 @@ process.env.CRAWLEE_INTERNAL_TIMEOUT = '30000';
 
 const mainOptions = {
     exit: Actor.isAtHome(),
-    storage: process.env.STORAGE_IMPLEMENTATION === 'LOCAL' ? new (await import('@apify/storage-local')).ApifyStorageLocal() : undefined,
+    storage:
+        process.env.STORAGE_IMPLEMENTATION === 'LOCAL'
+            ? new (await import('@apify/storage-local')).ApifyStorageLocal()
+            : undefined,
 };
 
 // RequestQueue auto-reset when stuck with requests in progress
 await Actor.main(async () => {
-    const requestQueue = await RequestQueue.open();
+    const requestQueue = await RequestQueueV1.open();
     await requestQueue.addRequest({ url: 'https://example.com/?q=1' });
     await requestQueue.addRequest({ url: 'https://example.com/?q=2' });
     const r3 = await requestQueue.addRequest({ url: 'https://example.com/?q=3' });

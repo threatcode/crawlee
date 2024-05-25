@@ -1,6 +1,7 @@
 import React from 'react';
 import clsx from 'clsx';
 import styles from './Highlights.module.css';
+import Gradients from './Gradients';
 
 const FeatureList = [
     {
@@ -10,7 +11,7 @@ const FeatureList = [
             <>
                 We believe websites are best scraped in the language they're written in. Crawlee <b>runs on Node.js
                 and it's <a href="https://crawlee.dev/docs/guides/typescript-project">built in TypeScript</a></b> to improve code completion in your IDE,
-                even if you don't use TypeScript yourself.
+                even if you don't use TypeScript yourself. Crawlee supports both TypeScript and JavaScript crawling.
             </>
         ),
     },
@@ -86,10 +87,9 @@ function Feature({ Svg, title, description }) {
 }
 
 export default function Highlights() {
-    const Svg = require('../../static/img/features/gradient.svg').default;
     return (
         <section className={styles.features}>
-            {<Svg />}
+            <Gradients />
             <div className="container">
                 <div className="row">
                     {FeatureList.map((props, idx) => (

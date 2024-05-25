@@ -40,8 +40,14 @@ describe('ProxyConfiguration', () => {
     });
 
     test('newUrlFunction should correctly generate URLs', async () => {
-        const customUrls = ['http://proxy.com:1111', 'http://proxy.com:2222', 'http://proxy.com:3333',
-            'http://proxy.com:4444', 'http://proxy.com:5555', 'http://proxy.com:6666'];
+        const customUrls = [
+            'http://proxy.com:1111',
+            'http://proxy.com:2222',
+            'http://proxy.com:3333',
+            'http://proxy.com:4444',
+            'http://proxy.com:5555',
+            'http://proxy.com:6666',
+        ];
         const newUrlFunction = () => {
             return customUrls.pop();
         };
@@ -61,8 +67,14 @@ describe('ProxyConfiguration', () => {
     });
 
     test('async newUrlFunction should work correctly', async () => {
-        const customUrls = ['http://proxy.com:1111', 'http://proxy.com:2222', 'http://proxy.com:3333',
-            'http://proxy.com:4444', 'http://proxy.com:5555', 'http://proxy.com:6666'];
+        const customUrls = [
+            'http://proxy.com:1111',
+            'http://proxy.com:2222',
+            'http://proxy.com:3333',
+            'http://proxy.com:4444',
+            'http://proxy.com:5555',
+            'http://proxy.com:6666',
+        ];
         const newUrlFunction = async () => {
             await new Promise((r) => setTimeout(r, 5));
             return customUrls.pop();
@@ -197,11 +209,7 @@ describe('ProxyConfiguration', () => {
 
         test('rotating a request results in higher-level proxies', async () => {
             const proxyConfiguration = new ProxyConfiguration({
-                tieredProxyUrls: [
-                    ['http://proxy.com:1111'],
-                    ['http://proxy.com:2222'],
-                    ['http://proxy.com:3333'],
-                ],
+                tieredProxyUrls: [['http://proxy.com:1111'], ['http://proxy.com:2222'], ['http://proxy.com:3333']],
             });
 
             const request = new Request({
@@ -223,11 +231,7 @@ describe('ProxyConfiguration', () => {
         });
 
         test('upshifts and downshifts properly', async () => {
-            const tieredProxyUrls = [
-                ['http://proxy.com:1111'],
-                ['http://proxy.com:2222'],
-                ['http://proxy.com:3333'],
-            ];
+            const tieredProxyUrls = [['http://proxy.com:1111'], ['http://proxy.com:2222'], ['http://proxy.com:3333']];
 
             const proxyConfiguration = new ProxyConfiguration({
                 tieredProxyUrls,
@@ -244,12 +248,11 @@ describe('ProxyConfiguration', () => {
                     gotToTheHighestProxy = true;
                     break;
                 }
-                request.sessionRotationCount++;
             }
 
             expect(gotToTheHighestProxy).toBe(true);
 
-            // now let's go back down
+            // Even the highest-tier proxies didn't help - we should try going down
             let gotToTheLowestProxy = false;
 
             for (let i = 0; i < 20; i++) {
@@ -258,7 +261,45 @@ describe('ProxyConfiguration', () => {
                     gotToTheLowestProxy = true;
                     break;
                 }
-                // We don't increment the sessionRotationCount here - this causes the proxy tier to go down (current proxy is ok, so it tries to downshift in some time)
+            }
+
+            expect(gotToTheLowestProxy).toBe(true);
+        });
+
+        test('successful requests make the proxy tier drop eventually', async () => {
+            const tieredProxyUrls = [['http://proxy.com:1111'], ['http://proxy.com:2222'], ['http://proxy.com:3333']];
+
+            const proxyConfiguration = new ProxyConfiguration({
+                tieredProxyUrls,
+            });
+
+            const failingRequest = new Request({
+                url: 'http://example.com',
+            });
+            let gotToTheHighestProxy = false;
+
+            for (let i = 0; i < 10; i++) {
+                const lastProxyUrl = await proxyConfiguration.newUrl('session-id', { request: failingRequest });
+
+                if (lastProxyUrl === tieredProxyUrls[2][0]) {
+                    gotToTheHighestProxy = true;
+                    break;
+                }
+            }
+
+            expect(gotToTheHighestProxy).toBe(true);
+
+            let gotToTheLowestProxy = false;
+
+            for (let i = 0; i < 100; i++) {
+                const lastProxyUrl = await proxyConfiguration.newUrl('session-id', {
+                    request: new Request({ url: `http://example.com/${i}` }),
+                });
+
+                if (lastProxyUrl === tieredProxyUrls[0][0]) {
+                    gotToTheLowestProxy = true;
+                    break;
+                }
             }
 
             expect(gotToTheLowestProxy).toBe(true);
