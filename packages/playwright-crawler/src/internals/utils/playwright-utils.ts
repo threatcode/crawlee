@@ -600,6 +600,28 @@ export async function saveSnapshot(page: Page, options: SaveSnapshotOptions = {}
 export async function parseWithCheerio(page: Page, ignoreShadowRoots = false): Promise<CheerioRoot> {
     ow(page, ow.object.validate(validators.browserPage));
 
+    if (page.frames().length > 1) {
+        const frames = await page.$$('iframe');
+
+        await Promise.all(
+            frames.map(async (frame) => {
+                const iframe = await frame.contentFrame();
+
+                if (iframe) {
+                    const contents = await iframe.content();
+
+                    await frame.evaluate((f, c) => {
+                        const replacementNode = document.createElement('div');
+                        replacementNode.innerHTML = c;
+                        replacementNode.className = 'crawlee-iframe-replacement';
+
+                        f.replaceWith(replacementNode);
+                    }, contents);
+                }
+            }),
+        );
+    }
+
     const html = ignoreShadowRoots
         ? null
         : ((await page.evaluate(`(${expandShadowRoots.toString()})(document)`)) as string);
@@ -691,17 +713,33 @@ export interface PlaywrightContextUtils {
     blockRequests(options?: BlockRequestsOptions): Promise<void>;
 
     /**
-     * Returns Cheerio handle for `page.content()`, allowing to work with the data same way as with {@apilink CheerioCrawler}.
+     * Wait for an element matching the selector to appear.
+     * Timeout defaults to 5s.
      *
      * **Example usage:**
-     * ```javascript
+     * ```ts
+     * async requestHandler({ waitForSelector, parseWithCheerio }) {
+     *     await waitForSelector('article h1');
+     *     const $ = await parseWithCheerio();
+     *     const title = $('title').text();
+     * });
+     * ```
+     */
+    waitForSelector(selector: string, timeoutMs?: number): Promise<void>;
+
+    /**
+     * Returns Cheerio handle for `page.content()`, allowing to work with the data same way as with {@apilink CheerioCrawler}.
+     * When provided with the `selector` argument, it waits for it to be available first.
+     *
+     * **Example usage:**
+     * ```ts
      * async requestHandler({ parseWithCheerio }) {
      *     const $ = await parseWithCheerio();
      *     const title = $('title').text();
      * });
      * ```
      */
-    parseWithCheerio(): Promise<CheerioRoot>;
+    parseWithCheerio(selector?: string, timeoutMs?: number): Promise<CheerioRoot>;
 
     /**
      * Scrolls to the bottom of a page, or until it times out.
@@ -811,7 +849,17 @@ export function registerUtilsToContext(
         await injectJQuery(context.page, { surviveNavigations: false });
     };
     context.blockRequests = async (options?: BlockRequestsOptions) => blockRequests(context.page, options);
-    context.parseWithCheerio = async () => parseWithCheerio(context.page, crawlerOptions.ignoreShadowRoots);
+    context.waitForSelector = async (selector: string, timeoutMs = 5_000) => {
+        const locator = context.page.locator(selector).first();
+        await locator.waitFor({ timeout: timeoutMs, state: 'attached' });
+    };
+    context.parseWithCheerio = async (selector?: string, timeoutMs = 5_000) => {
+        if (selector) {
+            await context.waitForSelector(selector, timeoutMs);
+        }
+
+        return parseWithCheerio(context.page, crawlerOptions.ignoreShadowRoots);
+    };
     context.infiniteScroll = async (options?: InfiniteScrollOptions) => infiniteScroll(context.page, options);
     context.saveSnapshot = async (options?: SaveSnapshotOptions) =>
         saveSnapshot(context.page, { ...options, config: context.crawler.config });
