@@ -1,27 +1,42 @@
-import log from '@apify/log';
 import type { BatchAddRequestsResult, Dictionary } from '@crawlee/types';
+import { type RobotsTxtFile } from '@crawlee/utils';
 import ow from 'ow';
 import { getDomain } from 'tldts';
 import type { SetRequired } from 'type-fest';
 
-import type { GlobInput, PseudoUrlInput, RegExpInput, RequestTransform, UrlPatternObject } from './shared';
+import log from '@apify/log';
+
+import type { Request, RequestOptions } from '../request';
+import type {
+    AddRequestsBatchedOptions,
+    AddRequestsBatchedResult,
+    RequestProvider,
+    RequestQueueOperationOptions,
+} from '../storages';
+import type {
+    GlobInput,
+    PseudoUrlInput,
+    RegExpInput,
+    RequestTransform,
+    SkippedRequestCallback,
+    SkippedRequestReason,
+    UrlPatternObject,
+} from './shared';
 import {
-    filterRequestsByPatterns,
     constructGlobObjectsFromGlobs,
     constructRegExpObjectsFromPseudoUrls,
     constructRegExpObjectsFromRegExps,
     createRequestOptions,
     createRequests,
+    filterRequestsByPatterns,
 } from './shared';
-import type { RequestOptions } from '../request';
-import type { RequestProvider, RequestQueueOperationOptions } from '../storages';
 
 export interface EnqueueLinksOptions extends RequestQueueOperationOptions {
     /** Limit the amount of actually enqueued URLs to this number. Useful for testing across the entire crawling scope. */
     limit?: number;
 
     /** An array of URLs to enqueue. */
-    urls?: Readonly<string[]>;
+    urls?: readonly string[];
 
     /** A request queue to which the URLs will be enqueued. */
     requestQueue?: RequestProvider;
@@ -32,7 +47,12 @@ export interface EnqueueLinksOptions extends RequestQueueOperationOptions {
     /** Sets {@apilink Request.userData} for newly enqueued requests. */
     userData?: Dictionary;
 
-    /** Sets {@apilink Request.label} for newly enqueued requests. */
+    /**
+     * Sets {@apilink Request.label} for newly enqueued requests.
+     *
+     * Note that the request options specified in `globs`, `regexps`, or `pseudoUrls` objects
+     * have priority over this option.
+     */
     label?: string;
 
     /**
@@ -60,19 +80,18 @@ export interface EnqueueLinksOptions extends RequestQueueOperationOptions {
      * If `globs` is an empty array or `undefined`, and `regexps` are also not defined, then the function
      * enqueues the links with the same subdomain.
      */
-    globs?: Readonly<GlobInput[]>;
+    globs?: readonly GlobInput[];
 
     /**
      * An array of glob pattern strings, regexp patterns or plain objects
      * containing patterns matching URLs that will **never** be enqueued.
      *
      * The plain objects must include either the `glob` property or the `regexp` property.
-     * All remaining keys will be used as request options for the corresponding enqueued {@apilink Request} objects.
      *
      * Glob matching is always case-insensitive.
      * If you need case-sensitive matching, provide a regexp.
      */
-    exclude?: Readonly<(GlobInput | RegExpInput)[]>;
+    exclude?: readonly (GlobInput | RegExpInput)[];
 
     /**
      * An array of regular expressions or plain objects
@@ -84,7 +103,7 @@ export interface EnqueueLinksOptions extends RequestQueueOperationOptions {
      * If `regexps` is an empty array or `undefined`, and `globs` are also not defined, then the function
      * enqueues the links with the same subdomain.
      */
-    regexps?: Readonly<RegExpInput[]>;
+    regexps?: readonly RegExpInput[];
 
     /**
      * *NOTE:* In future versions of SDK the options will be removed.
@@ -104,7 +123,7 @@ export interface EnqueueLinksOptions extends RequestQueueOperationOptions {
      *
      * @deprecated prefer using `globs` or `regexps` instead
      */
-    pseudoUrls?: Readonly<PseudoUrlInput[]>;
+    pseudoUrls?: readonly PseudoUrlInput[];
 
     /**
      * Just before a new {@apilink Request} is constructed and enqueued to the {@apilink RequestQueue}, this function can be used
@@ -126,9 +145,8 @@ export interface EnqueueLinksOptions extends RequestQueueOperationOptions {
      * }
      * ```
      *
-     * Note that `transformRequestFunction` has a priority over request options
-     * specified in `globs`, `regexps`, or `pseudoUrls` objects,
-     * and thus some options could be over-written by `transformRequestFunction`.
+     * Note that the request options specified in `globs`, `regexps`, or `pseudoUrls` objects
+     * have priority over this function. Some request options returned by `transformRequestFunction` may be overwritten by pattern-based options from `globs`, `regexps`, or `pseudoUrls`.
      */
     transformRequestFunction?: RequestTransform;
 
@@ -151,6 +169,27 @@ export interface EnqueueLinksOptions extends RequestQueueOperationOptions {
      * @default EnqueueStrategy.SameHostname
      */
     strategy?: EnqueueStrategy | 'all' | 'same-domain' | 'same-hostname' | 'same-origin';
+
+    /**
+     * By default, only the first batch (1000) of found requests will be added to the queue before resolving the call.
+     * You can use this option to wait for adding all of them.
+     */
+    waitForAllRequestsToBeAdded?: boolean;
+
+    /**
+     * RobotsTxtFile instance for the current request that triggered the `enqueueLinks`.
+     * If provided, disallowed URLs will be ignored.
+     */
+    robotsTxtFile?: Pick<RobotsTxtFile, 'isAllowed'>;
+
+    /**
+     * When a request is skipped for some reason, you can use this callback to act on it.
+     * This is currently fired for requests skipped
+     * 1. based on robots.txt file,
+     * 2. because they don't match enqueueLinks filters,
+     * 3. or because the maxRequestsPerCrawl limit has been reached
+     */
+    onSkippedRequest?: SkippedRequestCallback;
 }
 
 /**
@@ -233,13 +272,20 @@ export enum EnqueueStrategy {
  * @returns Promise that resolves to {@apilink BatchAddRequestsResult} object.
  */
 export async function enqueueLinks(
-    options: SetRequired<EnqueueLinksOptions, 'requestQueue' | 'urls'>,
+    options: SetRequired<Omit<EnqueueLinksOptions, 'requestQueue'>, 'urls'> & {
+        requestQueue: {
+            addRequestsBatched: (
+                requests: Request<Dictionary>[],
+                options: AddRequestsBatchedOptions,
+            ) => Promise<AddRequestsBatchedResult>;
+        };
+    },
 ): Promise<BatchAddRequestsResult> {
     if (!options || Object.keys(options).length === 0) {
         throw new RangeError(
             [
                 'enqueueLinks() was called without the required options. You can only do that when you use the `crawlingContext.enqueueLinks()` method in request handlers.',
-                'Check out our guide on how to use enqueueLinks() here: https://crawlee.dev/docs/examples/crawl-relative-links',
+                'Check out our guide on how to use enqueueLinks() here: https://crawlee.dev/js/docs/examples/crawl-relative-links',
             ].join('\n'),
         );
     }
@@ -248,7 +294,9 @@ export async function enqueueLinks(
         options,
         ow.object.exactShape({
             urls: ow.array.ofType(ow.string),
-            requestQueue: ow.object.hasKeys('fetchNextRequest', 'addRequest'),
+            requestQueue: ow.object.hasKeys('addRequestsBatched'),
+            robotsTxtFile: ow.optional.object.hasKeys('isAllowed'),
+            onSkippedRequest: ow.optional.function,
             forefront: ow.optional.boolean,
             skipNavigation: ow.optional.boolean,
             limit: ow.optional.number,
@@ -264,11 +312,24 @@ export async function enqueueLinks(
             regexps: ow.optional.array.ofType(ow.any(ow.regExp, ow.object.hasKeys('regexp'))),
             transformRequestFunction: ow.optional.function,
             strategy: ow.optional.string.oneOf(Object.values(EnqueueStrategy)),
+            waitForAllRequestsToBeAdded: ow.optional.boolean,
         }),
     );
 
-    const { requestQueue, limit, urls, pseudoUrls, exclude, globs, regexps, transformRequestFunction, forefront } =
-        options;
+    const {
+        requestQueue,
+        limit,
+        urls,
+        pseudoUrls,
+        exclude,
+        globs,
+        regexps,
+        transformRequestFunction,
+        forefront,
+        waitForAllRequestsToBeAdded,
+        robotsTxtFile,
+        onSkippedRequest,
+    } = options;
 
     const urlExcludePatternObjects: UrlPatternObject[] = [];
     const urlPatternObjects: UrlPatternObject[] = [];
@@ -343,18 +404,64 @@ export async function enqueueLinks(
         }
     }
 
-    let requestOptions = createRequestOptions(urls, options);
-
-    if (transformRequestFunction) {
-        requestOptions = requestOptions
-            .map((request) => transformRequestFunction(request))
-            .filter((r) => !!r) as RequestOptions[];
+    async function reportSkippedRequests(
+        skippedRequests: { url: string; skippedReason?: SkippedRequestReason }[],
+        reason: SkippedRequestReason,
+    ) {
+        if (onSkippedRequest && skippedRequests.length > 0) {
+            await Promise.all(
+                skippedRequests.map((request) => {
+                    return onSkippedRequest({ url: request.url, reason: request.skippedReason ?? reason });
+                }),
+            );
+        }
     }
 
-    function createFilteredRequests() {
+    let requestOptions = createRequestOptions(urls, options);
+
+    if (robotsTxtFile) {
+        const skippedRequests: RequestOptions[] = [];
+
+        requestOptions = requestOptions.filter((request) => {
+            if (robotsTxtFile.isAllowed(request.url)) {
+                return true;
+            }
+
+            skippedRequests.push(request);
+            return false;
+        });
+
+        await reportSkippedRequests(skippedRequests, 'robotsTxt');
+    }
+
+    if (transformRequestFunction) {
+        const skippedRequests: RequestOptions[] = [];
+
+        requestOptions = requestOptions
+            .map((request) => {
+                const transformedRequest = transformRequestFunction(request);
+                if (!transformedRequest) {
+                    skippedRequests.push(request);
+                }
+                return transformedRequest;
+            })
+            .filter((r) => Boolean(r)) as RequestOptions[];
+
+        await reportSkippedRequests(skippedRequests, 'filters');
+    }
+
+    async function createFilteredRequests() {
+        const skippedRequests: string[] = [];
+
         // No user provided patterns means we can skip an extra filtering step
         if (urlPatternObjects.length === 0) {
-            return createRequests(requestOptions, enqueueStrategyPatterns, urlExcludePatternObjects, options.strategy);
+            return createRequests(
+                requestOptions,
+                enqueueStrategyPatterns,
+                urlExcludePatternObjects,
+                options.strategy,
+                (url) => skippedRequests.push(url),
+            );
         }
 
         // Generate requests based on the user patterns first
@@ -363,15 +470,31 @@ export async function enqueueLinks(
             urlPatternObjects,
             urlExcludePatternObjects,
             options.strategy,
+            (url) => skippedRequests.push(url),
         );
         // ...then filter them by the enqueue links strategy (making this an AND check)
-        return filterRequestsByPatterns(generatedRequestsFromUserFilters, enqueueStrategyPatterns);
+        const filtered = filterRequestsByPatterns(generatedRequestsFromUserFilters, enqueueStrategyPatterns, (url) =>
+            skippedRequests.push(url),
+        );
+
+        await reportSkippedRequests(
+            skippedRequests.map((url) => ({ url })),
+            'filters',
+        );
+
+        return filtered;
     }
 
-    let requests = createFilteredRequests();
-    if (limit) requests = requests.slice(0, limit);
+    let requests = await createFilteredRequests();
+    if (typeof limit === 'number' && limit < requests.length) {
+        await reportSkippedRequests(requests.slice(limit), 'limit');
+        requests = requests.slice(0, limit);
+    }
 
-    const { addedRequests } = await requestQueue.addRequestsBatched(requests, { forefront });
+    const { addedRequests } = await requestQueue.addRequestsBatched(requests, {
+        forefront,
+        waitForAllRequestsToBeAdded,
+    });
 
     return { processedRequests: addedRequests, unprocessedRequests: [] };
 }

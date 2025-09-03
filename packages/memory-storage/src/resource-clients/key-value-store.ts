@@ -8,7 +8,6 @@ import { s } from '@sapphire/shapeshift';
 import { move } from 'fs-extra';
 import mime from 'mime-types';
 
-import { BaseClient } from './common/base-client';
 import { scheduleBackgroundTask } from '../background-handler';
 import { maybeParseBody } from '../body-parser';
 import { findOrCacheKeyValueStoreByPossibleId } from '../cache-helpers';
@@ -17,6 +16,7 @@ import type { StorageImplementation } from '../fs/common';
 import { createKeyValueStorageImplementation } from '../fs/key-value-store';
 import type { MemoryStorage } from '../index';
 import { isBuffer, isStream } from '../utils';
+import { BaseClient } from './common/base-client';
 
 const DEFAULT_LOCAL_FILE_EXTENSION = 'bin';
 
@@ -119,10 +119,16 @@ export class KeyValueStoreClient extends BaseClient {
     }
 
     async listKeys(options: storage.KeyValueStoreClientListOptions = {}): Promise<storage.KeyValueStoreClientListData> {
-        const { limit = DEFAULT_API_PARAM_LIMIT, exclusiveStartKey } = s
+        const {
+            limit = DEFAULT_API_PARAM_LIMIT,
+            exclusiveStartKey,
+            prefix,
+        } = s
             .object({
                 limit: s.number.greaterThan(0).optional,
                 exclusiveStartKey: s.string.optional,
+                collection: s.string.optional, // This is ignored, but kept for validation consistency with API client.
+                prefix: s.string.optional,
             })
             .parse(options);
 
@@ -151,23 +157,25 @@ export class KeyValueStoreClient extends BaseClient {
             return a.key.localeCompare(b.key);
         });
 
-        let truncatedItems = items;
+        const filteredItems = items.filter((item) => !prefix || item.key.startsWith(prefix));
+
+        let truncatedItems = filteredItems;
         if (exclusiveStartKey) {
-            const keyPos = items.findIndex((item) => item.key === exclusiveStartKey);
-            if (keyPos !== -1) truncatedItems = items.slice(keyPos + 1);
+            const keyPos = filteredItems.findIndex((item) => item.key === exclusiveStartKey);
+            if (keyPos !== -1) truncatedItems = filteredItems.slice(keyPos + 1);
         }
 
         const limitedItems = truncatedItems.slice(0, limit);
 
-        const lastItemInStore = items[items.length - 1];
-        const lastSelectedItem = limitedItems[limitedItems.length - 1];
+        const lastItemInStore = filteredItems.at(-1);
+        const lastSelectedItem = limitedItems.at(-1);
         const isLastSelectedItemAbsolutelyLast = lastItemInStore === lastSelectedItem;
-        const nextExclusiveStartKey = isLastSelectedItemAbsolutelyLast ? undefined : lastSelectedItem.key;
+        const nextExclusiveStartKey = isLastSelectedItemAbsolutelyLast ? undefined : lastSelectedItem?.key;
 
         existingStoreById.updateTimestamps(false);
 
         return {
-            count: items.length,
+            count: limitedItems.length,
             limit,
             exclusiveStartKey,
             isTruncated: !isLastSelectedItemAbsolutelyLast,

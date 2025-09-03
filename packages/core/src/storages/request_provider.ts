@@ -1,8 +1,5 @@
 import { inspect } from 'node:util';
 
-import { ListDictionary, LruCache } from '@apify/datastructures';
-import type { Log } from '@apify/log';
-import { cryptoRandomObjectId } from '@apify/utilities';
 import type {
     BatchAddRequestsResult,
     Dictionary,
@@ -12,22 +9,97 @@ import type {
     RequestQueueInfo,
     StorageClient,
 } from '@crawlee/types';
-import { chunk, downloadListOfUrls, sleep } from '@crawlee/utils';
+import {
+    chunkedAsyncIterable,
+    downloadListOfUrls,
+    getObjectType,
+    isAsyncIterable,
+    isIterable,
+    peekableAsyncIterable,
+    sleep,
+} from '@crawlee/utils';
 import ow from 'ow';
 
-import { checkStorageAccess } from './access_checking';
-import type { IStorage, StorageManagerOptions } from './storage_manager';
-import { StorageManager } from './storage_manager';
-import { QUERY_HEAD_MIN_LENGTH, getRequestId, purgeDefaultStorages } from './utils';
+import { ListDictionary, LruCache } from '@apify/datastructures';
+import type { Log } from '@apify/log';
+import { cryptoRandomObjectId } from '@apify/utilities';
+
 import { Configuration } from '../configuration';
 import { EventType } from '../events';
 import { log } from '../log';
 import type { ProxyConfiguration } from '../proxy_configuration';
+import type { InternalSource, RequestOptions, Source } from '../request';
 import { Request } from '../request';
-import type { RequestOptions, InternalSource, Source } from '../request';
 import type { Constructor } from '../typedefs';
+import { checkStorageAccess } from './access_checking';
+import type { IStorage, StorageManagerOptions } from './storage_manager';
+import { StorageManager } from './storage_manager';
+import { getRequestId, purgeDefaultStorages, QUERY_HEAD_MIN_LENGTH } from './utils';
 
-export abstract class RequestProvider implements IStorage {
+export type RequestsLike = AsyncIterable<Source | string> | Iterable<Source | string> | (Source | string)[];
+
+/**
+ * Represents a provider of requests/URLs to crawl.
+ */
+export interface IRequestManager {
+    /**
+     * Returns `true` if all requests were already handled and there are no more left.
+     */
+    isFinished(): Promise<boolean>;
+
+    /**
+     * Resolves to `true` if the next call to {@apilink IRequestManager.fetchNextRequest} function
+     * would return `null`, otherwise it resolves to `false`.
+     * Note that even if the provider is empty, there might be some pending requests currently being processed.
+     */
+    isEmpty(): Promise<boolean>;
+
+    /**
+     * Returns number of handled requests.
+     */
+    handledCount(): Promise<number>;
+
+    /**
+     * Get the total number of requests known to the request manager.
+     */
+    getTotalCount(): number;
+
+    /**
+     * Get an offline approximation of the number of pending requests.
+     */
+    getPendingCount(): number;
+
+    /**
+     * Gets the next {@apilink Request} to process.
+     *
+     * The function's `Promise` resolves to `null` if there are no more
+     * requests to process.
+     */
+    fetchNextRequest<T extends Dictionary = Dictionary>(): Promise<Request<T> | null>;
+
+    /**
+     * Can be used to iterate over the `RequestManager` instance in a `for await .. of` loop.
+     * Provides an alternative for the repeated use of `fetchNextRequest`.
+     */
+    [Symbol.asyncIterator](): AsyncGenerator<Request>;
+
+    /**
+     * Marks request as handled after successful processing.
+     */
+    markRequestHandled(request: Request): Promise<RequestQueueOperationInfo | void | null>;
+
+    /**
+     * Reclaims request to the provider if its processing failed.
+     * The request will become available in the next `fetchNextRequest()`.
+     */
+    reclaimRequest(request: Request, options?: RequestQueueOperationOptions): Promise<RequestQueueOperationInfo | null>;
+
+    addRequest(requestLike: Source, options?: RequestQueueOperationOptions): Promise<RequestQueueOperationInfo>;
+
+    addRequestsBatched(requests: RequestsLike, options?: AddRequestsBatchedOptions): Promise<AddRequestsBatchedResult>;
+}
+
+export abstract class RequestProvider implements IStorage, IRequestManager {
     id: string;
     name?: string;
     timeoutSecs = 30;
@@ -45,16 +117,20 @@ export abstract class RequestProvider implements IStorage {
     assumedHandledCount = 0;
 
     private initialCount = 0;
+    private initialHandledCount = 0; // We track this separately from `assumedHandledCount` which is used non-trivially by RequestQueueV1
 
     protected queueHeadIds = new ListDictionary<string>();
     protected requestCache: LruCache<RequestLruItem>;
-    /** @internal */
-    inProgress = new Set<string>();
+
     protected recentlyHandledRequestsCache: LruCache<boolean>;
 
     protected queuePausedForMigration = false;
 
     protected lastActivity = new Date();
+
+    protected isFinishedCalledWhileHeadWasNotEmpty = 0;
+
+    protected inProgressRequestBatchCount = 0;
 
     constructor(
         options: InternalRequestProviderOptions,
@@ -71,7 +147,7 @@ export abstract class RequestProvider implements IStorage {
 
         this.requestCache = new LruCache({ maxLength: options.requestCacheMaxSize });
         this.recentlyHandledRequestsCache = new LruCache({ maxLength: options.recentlyHandledRequestsMaxSize });
-        this.log = log.child({ prefix: options.logPrefix });
+        this.log = log.child({ prefix: `${options.logPrefix}(${this.id}, ${this.name ?? 'no-name'})` });
 
         const eventManager = config.getEventManager();
 
@@ -81,19 +157,21 @@ export abstract class RequestProvider implements IStorage {
     }
 
     /**
-     * @ignore
-     */
-    inProgressCount() {
-        return this.inProgress.size;
-    }
-
-    /**
      * Returns an offline approximation of the total number of requests in the queue (i.e. pending + handled).
      *
      * Survives restarts and actor migrations.
      */
     getTotalCount() {
         return this.assumedTotalCount + this.initialCount;
+    }
+
+    /**
+     * Returns an offline approximation of the total number of pending requests in the queue.
+     *
+     * Survives restarts and Actor migrations.
+     */
+    getPendingCount() {
+        return this.getTotalCount() - this.initialHandledCount - this.assumedHandledCount;
     }
 
     /**
@@ -132,7 +210,7 @@ export abstract class RequestProvider implements IStorage {
             const requests = await this._fetchRequestsFromUrl(requestLike as InternalSource);
             const processedRequests = await this._addFetchedRequests(requestLike as InternalSource, requests, options);
 
-            return processedRequests[0];
+            return { ...processedRequests[0], forefront };
         }
 
         ow(
@@ -157,20 +235,20 @@ export abstract class RequestProvider implements IStorage {
                 wasAlreadyHandled: cachedInfo.isHandled,
                 requestId: cachedInfo.id,
                 uniqueKey: cachedInfo.uniqueKey,
+                forefront,
             };
         }
 
-        const queueOperationInfo = (await this.client.addRequest(request, { forefront })) as RequestQueueOperationInfo;
-        queueOperationInfo.uniqueKey = request.uniqueKey;
+        const queueOperationInfo = {
+            ...(await this.client.addRequest(request, { forefront })),
+            uniqueKey: request.uniqueKey,
+            forefront,
+        } satisfies RequestQueueOperationInfo;
 
         const { requestId, wasAlreadyPresent } = queueOperationInfo;
         this._cacheRequest(cacheKey, queueOperationInfo);
 
-        if (
-            !wasAlreadyPresent &&
-            !this.inProgress.has(requestId) &&
-            !this.recentlyHandledRequestsCache.get(requestId)
-        ) {
+        if (!wasAlreadyPresent && !this.recentlyHandledRequestsCache.get(requestId)) {
             this.assumedTotalCount++;
 
             // Performance optimization: add request straight to head if possible
@@ -181,9 +259,12 @@ export abstract class RequestProvider implements IStorage {
     }
 
     /**
-     * Adds requests to the queue in batches of 25.
+     * Adds requests to the queue in batches of 25. This method will wait till all the requests are added
+     * to the queue before resolving. You should prefer using `queue.addRequestsBatched()` or `crawler.addRequests()`
+     * if you don't want to block the processing, as those methods will only wait for the initial 1000 requests,
+     * start processing right after that happens, and continue adding more in the background.
      *
-     * If a request that is passed in is already present due to its `uniqueKey` property being the same,
+     * If a request passed in is already present due to its `uniqueKey` property being the same,
      * it will not be updated. You can find out whether this happened by finding the request in the resulting
      * {@apilink BatchAddRequestsResult} object.
      *
@@ -192,14 +273,19 @@ export abstract class RequestProvider implements IStorage {
      * @param [options] Request queue operation options.
      */
     async addRequests(
-        requestsLike: Source[],
+        requestsLike: RequestsLike,
         options: RequestQueueOperationOptions = {},
     ): Promise<BatchAddRequestsResult> {
         checkStorageAccess();
 
         this.lastActivity = new Date();
 
-        ow(requestsLike, ow.array);
+        ow(
+            requestsLike,
+            ow.object
+                .is((value: unknown) => isIterable(value) || isAsyncIterable(value))
+                .message((value) => `Expected an iterable or async iterable, got ${getObjectType(value)}`),
+        );
         ow(
             options,
             ow.object.exactShape({
@@ -227,18 +313,20 @@ export abstract class RequestProvider implements IStorage {
             unprocessedRequests: [],
         };
 
-        for (const requestLike of requestsLike) {
-            if ('requestsFromUrl' in requestLike) {
-                const requests = await this._fetchRequestsFromUrl(requestLike as InternalSource);
-                await this._addFetchedRequests(requestLike as InternalSource, requests, options);
+        const requests: Request<Dictionary>[] = [];
+
+        for await (const requestLike of requestsLike) {
+            if (typeof requestLike === 'string') {
+                requests.push(new Request({ url: requestLike }));
+            } else if ('requestsFromUrl' in requestLike) {
+                const fetchedRequests = await this._fetchRequestsFromUrl(requestLike as InternalSource);
+                await this._addFetchedRequests(requestLike as InternalSource, fetchedRequests, options);
+            } else {
+                requests.push(
+                    requestLike instanceof Request ? requestLike : new Request(requestLike as RequestOptions),
+                );
             }
         }
-
-        const requests = requestsLike
-            .filter((requestLike) => !('requestsFromUrl' in requestLike))
-            .map((requestLike) => {
-                return requestLike instanceof Request ? requestLike : new Request(requestLike as RequestOptions);
-            });
 
         const requestsToAdd = new Map<string, Request>();
 
@@ -271,7 +359,7 @@ export abstract class RequestProvider implements IStorage {
         // Report unprocessed requests
         results.unprocessedRequests = apiResults.unprocessedRequests;
 
-        // Add all new requests to the queue head
+        // Add all new requests to the requestCache
         for (const newRequest of apiResults.processedRequests) {
             // Add the new request to the processed list
             results.processedRequests.push(newRequest);
@@ -281,14 +369,10 @@ export abstract class RequestProvider implements IStorage {
             const { requestId, wasAlreadyPresent } = newRequest;
 
             if (cache) {
-                this._cacheRequest(cacheKey, newRequest);
+                this._cacheRequest(cacheKey, { ...newRequest, forefront });
             }
 
-            if (
-                !wasAlreadyPresent &&
-                !this.inProgress.has(requestId) &&
-                !this.recentlyHandledRequestsCache.get(requestId)
-            ) {
+            if (!wasAlreadyPresent && !this.recentlyHandledRequestsCache.get(requestId)) {
                 this.assumedTotalCount++;
 
                 // Performance optimization: add request straight to head if possible
@@ -301,7 +385,7 @@ export abstract class RequestProvider implements IStorage {
 
     /**
      * Adds requests to the queue in batches. By default, it will resolve after the initial batch is added, and continue
-     * adding the rest in background. You can configure the batch size via `batchSize` option and the sleep time in between
+     * adding the rest in the background. You can configure the batch size via `batchSize` option and the sleep time in between
      * the batches via `waitBetweenBatchesMillis`. If you want to wait for all batches to be added to the queue, you can use
      * the `waitForAllRequestsToBeAdded` promise you get in the response object.
      *
@@ -309,12 +393,18 @@ export abstract class RequestProvider implements IStorage {
      * @param options Options for the request queue
      */
     async addRequestsBatched(
-        requests: (string | Source)[],
+        requests: RequestsLike,
         options: AddRequestsBatchedOptions = {},
     ): Promise<AddRequestsBatchedResult> {
         checkStorageAccess();
 
         this.lastActivity = new Date();
+        ow(
+            requests,
+            ow.object
+                .is((value: unknown) => isIterable(value) || isAsyncIterable(value))
+                .message((value) => `Expected an iterable or async iterable, got ${getObjectType(value)}`),
+        );
 
         ow(
             options,
@@ -326,47 +416,48 @@ export abstract class RequestProvider implements IStorage {
             }),
         );
 
-        // The `requests` array can be huge, and `ow` is very slow for anything more complex.
-        // This explicit iteration takes a few milliseconds, while the ow check can take tens of seconds.
+        const addRequest = this.addRequest.bind(this);
 
-        // ow(requests, ow.array.ofType(ow.any(
-        //     ow.string,
-        //     ow.object.partialShape({ url: ow.string, id: ow.undefined }),
-        //     ow.object.partialShape({ requestsFromUrl: ow.string, regex: ow.optional.regExp }),
-        // )));
+        async function* generateRequests() {
+            for await (const opts of requests) {
+                // Validate the input
+                if (typeof opts === 'object' && opts !== null) {
+                    if (opts.url !== undefined && typeof opts.url !== 'string') {
+                        throw new Error(
+                            `Request options are not valid, the 'url' property is not a string. Input: ${inspect(opts)}`,
+                        );
+                    }
 
-        for (const request of requests) {
-            if (typeof request === 'string') {
-                continue;
-            }
+                    if (opts.id !== undefined) {
+                        throw new Error(
+                            `Request options are not valid, the 'id' property must not be present. Input: ${inspect(opts)}`,
+                        );
+                    }
 
-            if (typeof request === 'object' && request !== null) {
-                if (typeof request.url === 'string' && typeof request.id === 'undefined') {
-                    continue;
+                    if (
+                        (opts as any).requestsFromUrl !== undefined &&
+                        typeof (opts as any).requestsFromUrl !== 'string'
+                    ) {
+                        throw new Error(
+                            `Request options are not valid, the 'requestsFromUrl' property is not a string. Input: ${inspect(opts)}`,
+                        );
+                    }
                 }
 
-                if (typeof (request as any).requestsFromUrl === 'string') {
-                    continue;
+                if (opts && typeof opts === 'object' && 'requestsFromUrl' in opts) {
+                    // Handle URL lists right away
+                    await addRequest(opts, { forefront: options.forefront });
+                } else {
+                    // Yield valid requests
+                    yield typeof opts === 'string' ? { url: opts } : (opts as RequestOptions);
                 }
             }
-
-            throw new Error(
-                `Request options are not valid, provide either a URL or an object with 'url' property (but without 'id' property), or an object with 'requestsFromUrl' property. Input: ${inspect(
-                    request,
-                )}`,
-            );
         }
 
         const { batchSize = 1000, waitBetweenBatchesMillis = 1000 } = options;
-        const sources: Source[] = [];
 
-        for (const opts of requests) {
-            if (opts && typeof opts === 'object' && 'requestsFromUrl' in opts) {
-                await this.addRequest(opts, { forefront: options.forefront });
-            } else {
-                sources.push(typeof opts === 'string' ? { url: opts } : (opts as RequestOptions));
-            }
-        }
+        const chunks = peekableAsyncIterable(chunkedAsyncIterable(generateRequests(), batchSize));
+        const chunksIterator = chunks[Symbol.asyncIterator]();
 
         const attemptToAddToQueueAndAddAnyUnprocessed = async (providedRequests: Source[], cache = true) => {
             const resultsToReturn: ProcessedRequest[] = [];
@@ -389,13 +480,17 @@ export abstract class RequestProvider implements IStorage {
             return resultsToReturn;
         };
 
-        const initialChunk = sources.splice(0, batchSize);
-
         // Add initial batch of `batchSize` to process them right away
-        const addedRequests = await attemptToAddToQueueAndAddAnyUnprocessed(initialChunk);
+        const initialChunk = await chunksIterator.peek();
+        if (initialChunk === undefined) {
+            return { addedRequests: [], waitForAllRequestsToBeAdded: Promise.resolve([]) };
+        }
 
-        // If we have no more requests to add, return early
-        if (!sources.length) {
+        const addedRequests = await attemptToAddToQueueAndAddAnyUnprocessed(initialChunk);
+        await chunksIterator.next();
+
+        // If we have no more requests to add, return immediately
+        if ((await chunksIterator.peek()) === undefined) {
             return {
                 addedRequests,
                 waitForAllRequestsToBeAdded: Promise.resolve([]),
@@ -404,16 +499,20 @@ export abstract class RequestProvider implements IStorage {
 
         // eslint-disable-next-line no-async-promise-executor
         const promise = new Promise<ProcessedRequest[]>(async (resolve) => {
-            const chunks = chunk(sources, batchSize);
             const finalAddedRequests: ProcessedRequest[] = [];
 
-            for (const requestChunk of chunks) {
+            for await (const requestChunk of chunks) {
                 finalAddedRequests.push(...(await attemptToAddToQueueAndAddAnyUnprocessed(requestChunk, false)));
 
                 await sleep(waitBetweenBatchesMillis);
             }
 
             resolve(finalAddedRequests);
+        });
+
+        this.inProgressRequestBatchCount += 1;
+        void promise.finally(() => {
+            this.inProgressRequestBatchCount -= 1;
         });
 
         // If the user wants to wait for all the requests to be added, we wait for the promise to resolve for them
@@ -461,7 +560,7 @@ export abstract class RequestProvider implements IStorage {
      * @returns
      *   Returns the request object or `null` if there are no more pending requests.
      */
-    abstract fetchNextRequest<T extends Dictionary = Dictionary>(options?: RequestOptions): Promise<Request<T> | null>;
+    abstract fetchNextRequest<T extends Dictionary = Dictionary>(): Promise<Request<T> | null>;
 
     /**
      * Marks a request that was previously returned by the
@@ -483,27 +582,26 @@ export abstract class RequestProvider implements IStorage {
             }),
         );
 
-        if (!this.inProgress.has(request.id)) {
-            this.log.debug(`Cannot mark request ${request.id} as handled, because it is not in progress!`, {
-                requestId: request.id,
-            });
-            return null;
-        }
+        const forefront = this.requestCache.get(getRequestId(request.uniqueKey))?.forefront ?? false;
 
         const handledAt = request.handledAt ?? new Date().toISOString();
-        const queueOperationInfo = (await this.client.updateRequest({
-            ...request,
-            handledAt,
-        })) as RequestQueueOperationInfo;
+        const queueOperationInfo = {
+            ...(await this.client.updateRequest({
+                ...request,
+                handledAt,
+            })),
+            uniqueKey: request.uniqueKey,
+            forefront,
+        } satisfies RequestQueueOperationInfo;
         request.handledAt = handledAt;
-        queueOperationInfo.uniqueKey = request.uniqueKey;
 
-        this.inProgress.delete(request.id);
         this.recentlyHandledRequestsCache.add(request.id, true);
 
         if (!queueOperationInfo.wasAlreadyHandled) {
             this.assumedHandledCount++;
         }
+
+        this.queueHeadIds.remove(request.id);
 
         this._cacheRequest(getRequestId(request.uniqueKey), queueOperationInfo);
 
@@ -540,19 +638,15 @@ export abstract class RequestProvider implements IStorage {
 
         const { forefront = false } = options;
 
-        if (!this.inProgress.has(request.id)) {
-            this.log.debug(`Cannot reclaim request ${request.id}, because it is not in progress!`, {
-                requestId: request.id,
-            });
-            return null;
-        }
-
         // TODO: If request hasn't been changed since the last getRequest(),
         //   we don't need to call updateRequest() and thus improve performance.
-        const queueOperationInfo = (await this.client.updateRequest(request, {
+        const queueOperationInfo = {
+            ...(await this.client.updateRequest(request, {
+                forefront,
+            })),
+            uniqueKey: request.uniqueKey,
             forefront,
-        })) as RequestQueueOperationInfo;
-        queueOperationInfo.uniqueKey = request.uniqueKey;
+        } satisfies RequestQueueOperationInfo;
         this._cacheRequest(getRequestId(request.uniqueKey), queueOperationInfo);
 
         return queueOperationInfo;
@@ -574,57 +668,14 @@ export abstract class RequestProvider implements IStorage {
     /**
      * Resolves to `true` if all requests were already handled and there are no more left.
      * Due to the nature of distributed storage used by the queue,
-     * the function might occasionally return a false negative,
-     * but it will never return a false positive.
+     * the function may occasionally return a false negative,
+     * but it shall never return a false positive.
      */
-    async isFinished(): Promise<boolean> {
-        // TODO: once/if we figure out why sometimes request queues get stuck (if it's even request queues), remove this once and for all :)
-        if (Date.now() - +this.lastActivity > this.internalTimeoutMillis) {
-            const message = `The request queue seems to be stuck for ${
-                this.internalTimeoutMillis / 1000
-            }s, resetting internal state.`;
-
-            this.log.warning(message, {
-                inProgress: [...this.inProgress],
-                queueHeadIdsPending: this.queueHeadIds.length(),
-            });
-
-            // We only need to reset these two variables, no need to reset all the other stats
-            this.queueHeadIds.clear();
-            this.inProgress.clear();
-        }
-
-        if (this.queueHeadIds.length() > 0) {
-            this.log.debug('There are still ids in the queue head that are pending processing', {
-                queueHeadIdsPending: this.queueHeadIds.length(),
-            });
-
-            return false;
-        }
-
-        if (this.inProgressCount() > 0) {
-            this.log.debug('There are still requests in progress (or zombie)', {
-                inProgress: [...this.inProgress],
-            });
-
-            return false;
-        }
-
-        const currentHead = await this.client.listHead({ limit: 2 });
-
-        if (currentHead.items.length !== 0) {
-            this.log.debug(
-                'Queue head still returned requests that need to be processed (or that are locked by other clients)',
-            );
-        }
-
-        return currentHead.items.length === 0 && this.inProgressCount() === 0;
-    }
+    abstract isFinished(): Promise<boolean>;
 
     protected _reset() {
         this.lastActivity = new Date();
         this.queueHeadIds.clear();
-        this.inProgress.clear();
         this.recentlyHandledRequestsCache.clear();
         this.assumedTotalCount = 0;
         this.assumedHandledCount = 0;
@@ -644,6 +695,7 @@ export abstract class RequestProvider implements IStorage {
             uniqueKey: queueOperationInfo.uniqueKey,
             hydrated: null,
             lockExpiresAt: null,
+            forefront: queueOperationInfo.forefront,
         });
     }
 
@@ -671,6 +723,17 @@ export abstract class RequestProvider implements IStorage {
     }
 
     /**
+     * @inheritdoc
+     */
+    async *[Symbol.asyncIterator]() {
+        while (true) {
+            const req = await this.fetchNextRequest();
+            if (!req) break;
+            yield req;
+        }
+    }
+
+    /**
      * Returns the number of handled requests.
      *
      * This function is just a convenient shortcut for:
@@ -678,6 +741,7 @@ export abstract class RequestProvider implements IStorage {
      * ```javascript
      * const { handledRequestCount } = await queue.getInfo();
      * ```
+     * @inheritdoc
      */
     async handledCount(): Promise<number> {
         // NOTE: We keep this function for compatibility with RequestList.handledCount()
@@ -812,8 +876,10 @@ export abstract class RequestProvider implements IStorage {
         const queue = await manager.openStorage(queueIdOrName, options.storageClient);
         queue.proxyConfiguration = options.proxyConfiguration;
 
-        // eslint-disable-next-line dot-notation
-        queue['initialCount'] = (await queue.client.get())?.totalRequestCount ?? 0;
+        const queueInfo = await queue.client.get();
+
+        queue.initialCount = queueInfo?.totalRequestCount ?? 0;
+        queue.initialHandledCount = queueInfo?.handledRequestCount ?? 0;
 
         return queue;
     }
@@ -825,6 +891,8 @@ declare class BuiltRequestProvider extends RequestProvider {
     ): Promise<Request<T> | null>;
 
     protected override ensureHeadIsNonEmpty(): Promise<void>;
+
+    override isFinished(): Promise<boolean>;
 }
 
 interface RequestLruItem {
@@ -833,6 +901,7 @@ interface RequestLruItem {
     id: string;
     hydrated: Request | null;
     lockExpiresAt: number | null;
+    forefront: boolean;
 }
 
 export interface RequestProviderOptions {
@@ -869,6 +938,11 @@ export interface RequestQueueOperationOptions {
      *   - while reclaiming the request: the request will be placed to the beginning of the queue, so that it's returned
      *   in the next call to {@apilink RequestQueue.fetchNextRequest}.
      * By default, it's put to the end of the queue.
+     *
+     * In case the request is already present in the queue, this option has no effect.
+     *
+     * If more requests are added with this option at once, their order in the following `fetchNextRequest` call
+     * is arbitrary.
      * @default false
      */
     forefront?: boolean;
@@ -885,6 +959,7 @@ export interface RequestQueueOperationOptions {
  */
 export interface RequestQueueOperationInfo extends QueueOperationInfo {
     uniqueKey: string;
+    forefront: boolean;
 }
 
 export interface AddRequestsBatchedOptions extends RequestQueueOperationOptions {

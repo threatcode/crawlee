@@ -1,8 +1,8 @@
-import type { IncomingMessage } from 'http';
+import type { IncomingMessage } from 'node:http';
 
-import { addTimeoutToPromise } from '@apify/timeout';
-import { concatStreamToBuffer } from '@apify/utilities';
 import type {
+    BasicCrawlingContext,
+    Configuration,
     EnqueueLinksOptions,
     ErrorHandler,
     GetUserDataFromRequest,
@@ -10,22 +10,26 @@ import type {
     InternalHttpCrawlingContext,
     InternalHttpHook,
     RequestHandler,
-    RouterRoutes,
-    Configuration,
     RequestProvider,
+    RouterRoutes,
+    SkippedRequestCallback,
 } from '@crawlee/http';
 import {
-    HttpCrawler,
     enqueueLinks,
-    Router,
+    HttpCrawler,
     resolveBaseUrlForEnqueueLinksFiltering,
+    Router,
     tryAbsoluteURL,
 } from '@crawlee/http';
 import type { Dictionary } from '@crawlee/types';
+import { type CheerioRoot, type RobotsTxtFile, sleep } from '@crawlee/utils';
 import * as cheerio from 'cheerio';
 import type { DOMWindow } from 'jsdom';
 import { JSDOM, ResourceLoader, VirtualConsole } from 'jsdom';
 import ow from 'ow';
+
+import { addTimeoutToPromise } from '@apify/timeout';
+import { concatStreamToBuffer } from '@apify/utilities';
 
 export type JSDOMErrorHandler<
     UserData extends Dictionary = any, // with default to Dictionary we cant use a typed router in untyped crawler
@@ -41,7 +45,7 @@ export interface JSDOMCrawlerOptions<
      */
     runScripts?: boolean;
     /**
-     * Supress the logs from JSDOM internal console.
+     * Suppress the logs from JSDOM internal console.
      */
     hideInternalConsole?: boolean;
 }
@@ -59,7 +63,23 @@ export interface JSDOMCrawlingContext<
     document: Document;
 
     /**
+     * Wait for an element matching the selector to appear.
+     * Timeout defaults to 5s.
+     *
+     * **Example usage:**
+     * ```ts
+     * async requestHandler({ waitForSelector, parseWithCheerio }) {
+     *     await waitForSelector('article h1');
+     *     const $ = await parseWithCheerio();
+     *     const title = $('title').text();
+     * });
+     * ```
+     */
+    waitForSelector(selector: string, timeoutMs?: number): Promise<void>;
+
+    /**
      * Returns Cheerio handle, allowing to work with the data same way as with {@apilink CheerioCrawler}.
+     * When provided with the `selector` argument, it will first look for the selector with a 5s timeout.
      *
      * **Example usage:**
      * ```javascript
@@ -69,7 +89,7 @@ export interface JSDOMCrawlingContext<
      * });
      * ```
      */
-    parseWithCheerio(): Promise<cheerio.CheerioAPI>;
+    parseWithCheerio(selector?: string, timeoutMs?: number): Promise<CheerioRoot>;
 }
 
 export type JSDOMRequestHandler<
@@ -283,9 +303,11 @@ export class JSDOMCrawler extends HttpCrawler<JSDOMCrawlingContext> {
             },
             enqueueLinks: async (enqueueOptions?: EnqueueLinksOptions) => {
                 return domCrawlerEnqueueLinks({
-                    options: enqueueOptions,
+                    options: { ...enqueueOptions, limit: this.calculateEnqueuedRequestLimit(enqueueOptions?.limit) },
                     window,
                     requestQueue: await this.getRequestQueue(),
+                    robotsTxtFile: await this.getRobotsTxtFileForUrl(crawlingContext.request.url),
+                    onSkippedRequest: this.handleSkippedRequest,
                     originalRequestUrl: crawlingContext.request.url,
                     finalRequestUrl: crawlingContext.request.loadedUrl,
                 });
@@ -294,7 +316,29 @@ export class JSDOMCrawler extends HttpCrawler<JSDOMCrawlingContext> {
     }
 
     override async _runRequestHandler(context: JSDOMCrawlingContext) {
-        context.parseWithCheerio = async () => Promise.resolve(cheerio.load(context.body));
+        context.waitForSelector = async (selector: string, timeoutMs = 5_000) => {
+            const $ = cheerio.load(context.body);
+
+            if ($(selector).get().length === 0) {
+                if (timeoutMs) {
+                    await sleep(50);
+                    await context.waitForSelector(selector, Math.max(timeoutMs - 50, 0));
+                    return;
+                }
+
+                throw new Error(`Selector '${selector}' not found.`);
+            }
+        };
+        context.parseWithCheerio = async (selector?: string, _timeoutMs = 5_000) => {
+            const $ = cheerio.load(context.body);
+
+            if (selector && $(selector).get().length === 0) {
+                throw new Error(`Selector '${selector}' not found.`);
+            }
+
+            return $;
+        };
+
         await super._runRequestHandler(context);
     }
 }
@@ -303,40 +347,63 @@ interface EnqueueLinksInternalOptions {
     options?: EnqueueLinksOptions;
     window: DOMWindow | null;
     requestQueue: RequestProvider;
+    robotsTxtFile?: RobotsTxtFile;
+    onSkippedRequest?: SkippedRequestCallback;
+    originalRequestUrl: string;
+    finalRequestUrl?: string;
+}
+
+interface BoundEnqueueLinksInternalOptions {
+    enqueueLinks: BasicCrawlingContext['enqueueLinks'];
+    options?: EnqueueLinksOptions;
+    window: DOMWindow | null;
     originalRequestUrl: string;
     finalRequestUrl?: string;
 }
 
 /** @internal */
-export async function domCrawlerEnqueueLinks({
-    options,
-    window,
-    requestQueue,
-    originalRequestUrl,
-    finalRequestUrl,
-}: EnqueueLinksInternalOptions) {
+function containsEnqueueLinks(
+    options: EnqueueLinksInternalOptions | BoundEnqueueLinksInternalOptions,
+): options is BoundEnqueueLinksInternalOptions {
+    return !!(options as BoundEnqueueLinksInternalOptions).enqueueLinks;
+}
+
+/** @internal */
+export async function domCrawlerEnqueueLinks(options: EnqueueLinksInternalOptions | BoundEnqueueLinksInternalOptions) {
+    const { options: enqueueLinksOptions, window, originalRequestUrl, finalRequestUrl } = options;
+
     if (!window) {
         throw new Error('Cannot enqueue links because the JSDOM is not available.');
     }
 
     const baseUrl = resolveBaseUrlForEnqueueLinksFiltering({
-        enqueueStrategy: options?.strategy,
+        enqueueStrategy: enqueueLinksOptions?.strategy,
         finalRequestUrl,
         originalRequestUrl,
-        userProvidedBaseUrl: options?.baseUrl,
+        userProvidedBaseUrl: enqueueLinksOptions?.baseUrl,
     });
 
     const urls = extractUrlsFromWindow(
         window,
-        options?.selector ?? 'a',
-        options?.baseUrl ?? finalRequestUrl ?? originalRequestUrl,
+        enqueueLinksOptions?.selector ?? 'a',
+        enqueueLinksOptions?.baseUrl ?? finalRequestUrl ?? originalRequestUrl,
     );
 
+    if (containsEnqueueLinks(options)) {
+        return options.enqueueLinks({
+            urls,
+            baseUrl,
+            ...enqueueLinksOptions,
+        });
+    }
+
     return enqueueLinks({
-        requestQueue,
+        requestQueue: options.requestQueue,
+        robotsTxtFile: options.robotsTxtFile,
+        onSkippedRequest: options.onSkippedRequest,
         urls,
         baseUrl,
-        ...options,
+        ...enqueueLinksOptions,
     });
 }
 

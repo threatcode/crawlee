@@ -3,6 +3,225 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.14.1](https://github.com/apify/crawlee/compare/v3.14.0...v3.14.1) (2025-08-05)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+# [3.14.0](https://github.com/apify/crawlee/compare/v3.13.10...v3.14.0) (2025-07-25)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.13.10](https://github.com/apify/crawlee/compare/v3.13.9...v3.13.10) (2025-07-09)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.13.9](https://github.com/apify/crawlee/compare/v3.13.8...v3.13.9) (2025-06-27)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.13.8](https://github.com/apify/crawlee/compare/v3.13.7...v3.13.8) (2025-06-16)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.13.7](https://github.com/apify/crawlee/compare/v3.13.6...v3.13.7) (2025-06-06)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.13.6](https://github.com/apify/crawlee/compare/v3.13.5...v3.13.6) (2025-06-05)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.13.5](https://github.com/apify/crawlee/compare/v3.13.4...v3.13.5) (2025-05-20)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.13.4](https://github.com/apify/crawlee/compare/v3.13.3...v3.13.4) (2025-05-14)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.13.3](https://github.com/apify/crawlee/compare/v3.13.2...v3.13.3) (2025-05-05)
+
+
+### Bug Fixes
+
+* disable default fingerprints in the Camoufox template ([#2928](https://github.com/apify/crawlee/issues/2928)) ([6dffa00](https://github.com/apify/crawlee/commit/6dffa00d2b2077e8caece3983ac555d4c629d4fe))
+
+
+
+
+
+## [3.13.2](https://github.com/apify/crawlee/compare/v3.13.1...v3.13.2) (2025-04-08)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.13.1](https://github.com/apify/crawlee/compare/v3.13.0...v3.13.1) (2025-04-07)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+# [3.13.0](https://github.com/apify/crawlee/compare/v3.12.2...v3.13.0) (2025-03-04)
+
+
+### Bug Fixes
+
+* install browser in the `camoufox` template correctly ([#2864](https://github.com/apify/crawlee/issues/2864)) ([a9d008c](https://github.com/apify/crawlee/commit/a9d008c6f36a6cb1b6bc827cb0323ed9d6f6b536)), closes [#2863](https://github.com/apify/crawlee/issues/2863)
+
+
+### Features
+
+* Camoufox-based crawler template ([#2842](https://github.com/apify/crawlee/issues/2842)) ([7f08de4](https://github.com/apify/crawlee/commit/7f08de4c73812cb957828dec9946ca7f385739e4)), closes [#2836](https://github.com/apify/crawlee/issues/2836)
+
+
+
+
+
+## [3.12.2](https://github.com/apify/crawlee/compare/v3.12.1...v3.12.2) (2025-01-27)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.12.1](https://github.com/apify/crawlee/compare/v3.12.0...v3.12.1) (2024-12-04)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+# [3.12.0](https://github.com/apify/crawlee/compare/v3.11.5...v3.12.0) (2024-11-04)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.11.5](https://github.com/apify/crawlee/compare/v3.11.4...v3.11.5) (2024-10-04)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.11.4](https://github.com/apify/crawlee/compare/v3.11.3...v3.11.4) (2024-09-23)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.11.3](https://github.com/apify/crawlee/compare/v3.11.2...v3.11.3) (2024-09-03)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.11.2](https://github.com/apify/crawlee/compare/v3.11.1...v3.11.2) (2024-08-28)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.11.1](https://github.com/apify/crawlee/compare/v3.11.0...v3.11.1) (2024-07-24)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+# [3.11.0](https://github.com/apify/crawlee/compare/v3.10.5...v3.11.0) (2024-07-09)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.10.5](https://github.com/apify/crawlee/compare/v3.10.4...v3.10.5) (2024-06-12)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.10.4](https://github.com/apify/crawlee/compare/v3.10.3...v3.10.4) (2024-06-11)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.10.3](https://github.com/apify/crawlee/compare/v3.10.2...v3.10.3) (2024-06-07)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
+## [3.10.2](https://github.com/apify/crawlee/compare/v3.10.1...v3.10.2) (2024-06-03)
+
+**Note:** Version bump only for package @crawlee/templates
+
+
+
+
+
 ## [3.10.1](https://github.com/apify/crawlee/compare/v3.10.0...v3.10.1) (2024-05-23)
 
 **Note:** Version bump only for package @crawlee/templates

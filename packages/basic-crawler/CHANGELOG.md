@@ -3,6 +3,286 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.14.1](https://github.com/apify/crawlee/compare/v3.14.0...v3.14.1) (2025-08-05)
+
+**Note:** Version bump only for package @crawlee/basic
+
+
+
+
+
+# [3.14.0](https://github.com/apify/crawlee/compare/v3.13.10...v3.14.0) (2025-07-25)
+
+
+### Bug Fixes
+
+* validation of iterables when adding requests to the queue ([#3091](https://github.com/apify/crawlee/issues/3091)) ([529a1dd](https://github.com/apify/crawlee/commit/529a1dd57278efef4fb2013e79a09fd1bc8594a5)), closes [#3063](https://github.com/apify/crawlee/issues/3063)
+
+
+### Features
+
+* add `maxCrawlDepth` crawler option ([#3045](https://github.com/apify/crawlee/issues/3045)) ([0090df9](https://github.com/apify/crawlee/commit/0090df93a12df9918d016cf2f1378f1f7d40557d)), closes [#2633](https://github.com/apify/crawlee/issues/2633)
+
+
+
+
+
+## [3.13.10](https://github.com/apify/crawlee/compare/v3.13.9...v3.13.10) (2025-07-09)
+
+**Note:** Version bump only for package @crawlee/basic
+
+
+
+
+
+## [3.13.9](https://github.com/apify/crawlee/compare/v3.13.8...v3.13.9) (2025-06-27)
+
+
+### Features
+
+* Accept (Async)Iterables in `addRequests` methods ([#3013](https://github.com/apify/crawlee/issues/3013)) ([a4ab748](https://github.com/apify/crawlee/commit/a4ab74852c3c60bdbc96035f54b16d125220f699)), closes [#2980](https://github.com/apify/crawlee/issues/2980)
+* Report links skipped because of various filter conditions ([#3026](https://github.com/apify/crawlee/issues/3026)) ([5a867bc](https://github.com/apify/crawlee/commit/5a867bc28135803b55c765ec12e6fd04017ce53d)), closes [#3016](https://github.com/apify/crawlee/issues/3016)
+
+
+
+
+
+## [3.13.8](https://github.com/apify/crawlee/compare/v3.13.7...v3.13.8) (2025-06-16)
+
+
+### Bug Fixes
+
+* Do not enqueue more links than what the crawler is capable of processing ([#2990](https://github.com/apify/crawlee/issues/2990)) ([ea094c8](https://github.com/apify/crawlee/commit/ea094c819232e0b30bc550270836d10506eb9454)), closes [#2728](https://github.com/apify/crawlee/issues/2728)
+
+
+
+
+
+## [3.13.7](https://github.com/apify/crawlee/compare/v3.13.6...v3.13.7) (2025-06-06)
+
+**Note:** Version bump only for package @crawlee/basic
+
+
+
+
+
+## [3.13.6](https://github.com/apify/crawlee/compare/v3.13.5...v3.13.6) (2025-06-05)
+
+**Note:** Version bump only for package @crawlee/basic
+
+
+
+
+
+## [3.13.5](https://github.com/apify/crawlee/compare/v3.13.4...v3.13.5) (2025-05-20)
+
+**Note:** Version bump only for package @crawlee/basic
+
+
+
+
+
+## [3.13.4](https://github.com/apify/crawlee/compare/v3.13.3...v3.13.4) (2025-05-14)
+
+
+### Bug Fixes
+
+* Optimize request unlocking to get rid of unnecessary unlock calls ([#2963](https://github.com/apify/crawlee/issues/2963)) ([a433037](https://github.com/apify/crawlee/commit/a433037f307ed3490a1ef5df334f1f9a9044510d))
+
+
+
+
+
+## [3.13.3](https://github.com/apify/crawlee/compare/v3.13.2...v3.13.3) (2025-05-05)
+
+
+### Bug Fixes
+
+* respect `autoscaledPoolOptions.isTaskReadyFunction` option ([#2948](https://github.com/apify/crawlee/issues/2948)) ([fe2d206](https://github.com/apify/crawlee/commit/fe2d206b46afabb18c83e8af11fa03f085f4cd4e)), closes [#2922](https://github.com/apify/crawlee/issues/2922)
+* **statistics:** track actual request.retryCount in Statistics ([#2940](https://github.com/apify/crawlee/issues/2940)) ([c9f7f54](https://github.com/apify/crawlee/commit/c9f7f5494ac4895a30b283a5defe382db0cdea26))
+
+
+
+
+
+## [3.13.2](https://github.com/apify/crawlee/compare/v3.13.1...v3.13.2) (2025-04-08)
+
+
+### Features
+
+* add `onSkippedRequest` option ([#2916](https://github.com/apify/crawlee/issues/2916)) ([764f992](https://github.com/apify/crawlee/commit/764f99203627b6a44d2ee90d623b8b0e6ecbffb5)), closes [#2910](https://github.com/apify/crawlee/issues/2910)
+
+
+
+
+
+## [3.13.1](https://github.com/apify/crawlee/compare/v3.13.0...v3.13.1) (2025-04-07)
+
+
+### Bug Fixes
+
+* rename `RobotsFile` to `RobotsTxtFile` ([#2913](https://github.com/apify/crawlee/issues/2913)) ([3160f71](https://github.com/apify/crawlee/commit/3160f717e865326476d78089d778cbc7d35aa58d)), closes [#2910](https://github.com/apify/crawlee/issues/2910)
+
+
+### Features
+
+* add `respectRobotsTxtFile` crawler option ([#2910](https://github.com/apify/crawlee/issues/2910)) ([0eabed1](https://github.com/apify/crawlee/commit/0eabed1f13070d902c2c67b340621830a7f64464))
+
+
+
+
+
+# [3.13.0](https://github.com/apify/crawlee/compare/v3.12.2...v3.13.0) (2025-03-04)
+
+
+### Bug Fixes
+
+* Simplified RequestQueueV2 implementation ([#2775](https://github.com/apify/crawlee/issues/2775)) ([d1a094a](https://github.com/apify/crawlee/commit/d1a094a47eaecbf367b222f9b8c14d7da5d3e03a)), closes [#2767](https://github.com/apify/crawlee/issues/2767) [#2700](https://github.com/apify/crawlee/issues/2700)
+
+
+
+
+
+## [3.12.2](https://github.com/apify/crawlee/compare/v3.12.1...v3.12.2) (2025-01-27)
+
+
+### Bug Fixes
+
+* destructure `CrawlerRunOptions` before passing them to `addRequests` ([#2803](https://github.com/apify/crawlee/issues/2803)) ([02a598c](https://github.com/apify/crawlee/commit/02a598c2a501957f04ca3a2362bcee289ef861c0)), closes [#2802](https://github.com/apify/crawlee/issues/2802)
+* graceful `BasicCrawler` tidy-up on `CriticalError` ([#2817](https://github.com/apify/crawlee/issues/2817)) ([53331e8](https://github.com/apify/crawlee/commit/53331e82ee66274316add7cadb4afec1ce2d4bcf)), closes [#2807](https://github.com/apify/crawlee/issues/2807)
+
+
+### Features
+
+* stopping the crawlers gracefully with `BasicCrawler.stop()` ([#2792](https://github.com/apify/crawlee/issues/2792)) ([af2966f](https://github.com/apify/crawlee/commit/af2966f65caeaf4273fd0a8ab583a7857e4330ab)), closes [#2777](https://github.com/apify/crawlee/issues/2777)
+
+
+
+
+
+## [3.12.1](https://github.com/apify/crawlee/compare/v3.12.0...v3.12.1) (2024-12-04)
+
+
+### Bug Fixes
+
+* log status message timeouts to debug level ([55ee44a](https://github.com/apify/crawlee/commit/55ee44aaf5e73c2a9d96d973a4aae111ab2e0025))
+
+
+
+
+
+# [3.12.0](https://github.com/apify/crawlee/compare/v3.11.5...v3.12.0) (2024-11-04)
+
+
+### Features
+
+* allow using other HTTP clients ([#2661](https://github.com/apify/crawlee/issues/2661)) ([568c655](https://github.com/apify/crawlee/commit/568c6556d79ce91654c8a715d1d1729d7d6ed8ef)), closes [#2659](https://github.com/apify/crawlee/issues/2659)
+
+
+
+
+
+## [3.11.5](https://github.com/apify/crawlee/compare/v3.11.4...v3.11.5) (2024-10-04)
+
+
+### Bug Fixes
+
+* check `.isFinished()` before `RequestList` reads ([#2695](https://github.com/apify/crawlee/issues/2695)) ([6fa170f](https://github.com/apify/crawlee/commit/6fa170fbe16c326307b8a58c09c07f64afb64bb2))
+* **core:** trigger `errorHandler` for session errors ([#2683](https://github.com/apify/crawlee/issues/2683)) ([7d72bcb](https://github.com/apify/crawlee/commit/7d72bcb36f32933c6251382e5efd28a284e9267d)), closes [#2678](https://github.com/apify/crawlee/issues/2678)
+
+
+
+
+
+## [3.11.4](https://github.com/apify/crawlee/compare/v3.11.3...v3.11.4) (2024-09-23)
+
+**Note:** Version bump only for package @crawlee/basic
+
+
+
+
+
+## [3.11.3](https://github.com/apify/crawlee/compare/v3.11.2...v3.11.3) (2024-09-03)
+
+**Note:** Version bump only for package @crawlee/basic
+
+
+
+
+
+## [3.11.2](https://github.com/apify/crawlee/compare/v3.11.1...v3.11.2) (2024-08-28)
+
+
+### Bug Fixes
+
+* **RequestQueueV2:** remove `inProgress` cache, rely solely on locked states ([#2601](https://github.com/apify/crawlee/issues/2601)) ([57fcb08](https://github.com/apify/crawlee/commit/57fcb0804a9f1268039d1e2b246c515ceca7e405))
+
+
+
+
+
+## [3.11.1](https://github.com/apify/crawlee/compare/v3.11.0...v3.11.1) (2024-07-24)
+
+**Note:** Version bump only for package @crawlee/basic
+
+
+
+
+
+# [3.11.0](https://github.com/apify/crawlee/compare/v3.10.5...v3.11.0) (2024-07-09)
+
+
+### Features
+
+* Sitemap-based request list implementation ([#2498](https://github.com/apify/crawlee/issues/2498)) ([7bf8f0b](https://github.com/apify/crawlee/commit/7bf8f0bcd4cc81e02c7cc60e82dfe7a0cdd80938))
+
+
+
+
+
+## [3.10.5](https://github.com/apify/crawlee/compare/v3.10.4...v3.10.5) (2024-06-12)
+
+
+### Bug Fixes
+
+* mark `context.request.loadedUrl` and `id` as required inside the request handler ([#2531](https://github.com/apify/crawlee/issues/2531)) ([2b54660](https://github.com/apify/crawlee/commit/2b546600691d84852a2f9ef42f273cecf818d66d))
+
+
+
+
+
+## [3.10.4](https://github.com/apify/crawlee/compare/v3.10.3...v3.10.4) (2024-06-11)
+
+
+### Bug Fixes
+
+* add missing `useState` implementation into crawling context ([eec4a71](https://github.com/apify/crawlee/commit/eec4a71769f1236ca0876a4a32288241b1b63db1))
+* make `crawler.log` publicly accessible ([#2526](https://github.com/apify/crawlee/issues/2526)) ([3e9e665](https://github.com/apify/crawlee/commit/3e9e6652c0b5e4d0c2707985abbad7d80336b9af))
+* respect `crawler.log` when creating child logger for `Statistics` ([0a0d75d](https://github.com/apify/crawlee/commit/0a0d75d40b5f78b329589535bbe3e0e84be76a7e)), closes [#2412](https://github.com/apify/crawlee/issues/2412)
+
+
+
+
+
+## [3.10.3](https://github.com/apify/crawlee/compare/v3.10.2...v3.10.3) (2024-06-07)
+
+
+### Features
+
+* log desired concurrency in the default status message ([9f0b796](https://github.com/apify/crawlee/commit/9f0b79684d9e27e6ba29634e7da2e9a095367eda))
+
+
+
+
+
+## [3.10.2](https://github.com/apify/crawlee/compare/v3.10.1...v3.10.2) (2024-06-03)
+
+**Note:** Version bump only for package @crawlee/basic
+
+
+
+
+
 ## [3.10.1](https://github.com/apify/crawlee/compare/v3.10.0...v3.10.1) (2024-05-23)
 
 **Note:** Version bump only for package @crawlee/basic

@@ -1,7 +1,8 @@
-import log from '@apify/log';
-import { cryptoRandomObjectId } from '@apify/utilities';
 import type { Dictionary } from '@crawlee/types';
 import ow from 'ow';
+
+import log from '@apify/log';
+import { cryptoRandomObjectId } from '@apify/utilities';
 
 import type { Request } from './request';
 
@@ -9,13 +10,15 @@ export interface ProxyConfigurationFunction {
     (sessionId: string | number, options?: { request?: Request }): string | null | Promise<string | null>;
 }
 
+type UrlList = (string | null)[];
+
 export interface ProxyConfigurationOptions {
     /**
      * An array of custom proxy URLs to be rotated.
      * Custom proxies are not compatible with Apify Proxy and an attempt to use both
      * configuration options will cause an error to be thrown on initialize.
      */
-    proxyUrls?: string[];
+    proxyUrls?: UrlList;
 
     /**
      * Custom function that allows you to generate the new proxy URL dynamically. It gets the `sessionId` as a parameter and an optional parameter with the `Request` object when applicable.
@@ -33,12 +36,14 @@ export interface ProxyConfigurationOptions {
      * The crawler probes lower-level proxies at intervals to check if it can make the tier downshift.
      *
      * This feature is useful when you have a set of proxies with different performance characteristics (speed, price, antibot performance etc.) and you want to use the best one for each domain.
+     *
+     * Use `null` as a proxy URL to disable the proxy for the given tier.
      */
-    tieredProxyUrls?: string[][];
+    tieredProxyUrls?: UrlList[];
 }
 
 export interface TieredProxy {
-    proxyUrl: string;
+    proxyUrl: string | null;
     proxyTier?: number;
 }
 
@@ -123,7 +128,7 @@ class ProxyTierTracker {
     private histogram: number[];
     private currentTier: number;
 
-    constructor(tieredProxyUrls: string[][]) {
+    constructor(tieredProxyUrls: (string | null)[][]) {
         this.histogram = tieredProxyUrls.map(() => 0);
         this.currentTier = 0;
     }
@@ -198,9 +203,9 @@ class ProxyTierTracker {
 export class ProxyConfiguration {
     isManInTheMiddle = false;
     protected nextCustomUrlIndex = 0;
-    protected proxyUrls?: string[];
-    protected tieredProxyUrls?: string[][];
-    protected usedProxyUrls = new Map<string, string>();
+    protected proxyUrls?: UrlList;
+    protected tieredProxyUrls?: UrlList[];
+    protected usedProxyUrls = new Map<string, string | null>();
     protected newUrlFunction?: ProxyConfigurationFunction;
     protected log = log.child({ prefix: 'ProxyConfiguration' });
     protected domainTiers = new Map<string, ProxyTierTracker>();
@@ -230,9 +235,11 @@ export class ProxyConfiguration {
         ow(
             rest,
             ow.object.exactShape({
-                proxyUrls: ow.optional.array.nonEmpty.ofType(ow.string.url),
+                proxyUrls: ow.optional.array.nonEmpty.ofType(ow.any(ow.string.url, ow.null)),
                 newUrlFunction: ow.optional.function,
-                tieredProxyUrls: ow.optional.array.nonEmpty.ofType(ow.array.nonEmpty.ofType(ow.string.url)),
+                tieredProxyUrls: ow.optional.array.nonEmpty.ofType(
+                    ow.array.nonEmpty.ofType(ow.any(ow.string.url, ow.null)),
+                ),
             }),
         );
 
@@ -271,7 +278,7 @@ export class ProxyConfiguration {
         let tier: number | undefined;
         if (this.tieredProxyUrls) {
             const { proxyUrl, proxyTier } = this._handleTieredUrl(sessionId ?? cryptoRandomObjectId(6), options);
-            url = proxyUrl;
+            url = proxyUrl ?? undefined;
             tier = proxyTier;
         } else {
             url = await this.newUrl(sessionId, options);
@@ -284,8 +291,8 @@ export class ProxyConfiguration {
         return {
             sessionId,
             url,
-            username,
-            password,
+            username: decodeURIComponent(username),
+            password: decodeURIComponent(password),
             hostname,
             port: port!,
             proxyTier: tier,
@@ -345,6 +352,15 @@ export class ProxyConfiguration {
 
         const tierPrediction = tracker.predictTier();
 
+        if (
+            typeof request.userData.__crawlee.lastProxyTier === 'number' &&
+            request.userData.__crawlee.lastProxyTier !== tierPrediction
+        ) {
+            log.debug(
+                `Changing proxy tier for domain "${domain}" from ${request.userData.__crawlee.lastProxyTier} to ${tierPrediction}.`,
+            );
+        }
+
         request.userData.__crawlee.lastProxyTier = tierPrediction;
         request.userData.__crawlee.forefront = true;
 
@@ -372,17 +388,17 @@ export class ProxyConfiguration {
         }
 
         if (this.tieredProxyUrls) {
-            return this._handleTieredUrl(sessionId ?? cryptoRandomObjectId(6), options).proxyUrl;
+            return this._handleTieredUrl(sessionId ?? cryptoRandomObjectId(6), options).proxyUrl ?? undefined;
         }
 
-        return this._handleCustomUrl(sessionId);
+        return this._handleCustomUrl(sessionId) ?? undefined;
     }
 
     /**
      * Handles custom url rotation with session
      */
-    protected _handleCustomUrl(sessionId?: string): string {
-        let customUrlToUse: string;
+    protected _handleCustomUrl(sessionId?: string): string | null {
+        let customUrlToUse: string | null;
 
         if (!sessionId) {
             return this.proxyUrls![this.nextCustomUrlIndex++ % this.proxyUrls!.length];
@@ -409,12 +425,10 @@ export class ProxyConfiguration {
             }
             return proxyUrl;
         } catch (err) {
-            this._throwNewUrlFunctionInvalid(err as Error);
+            throw new Error(
+                `The provided newUrlFunction did not return a valid URL.\nCause: ${(err as Error).message}`,
+            );
         }
-    }
-
-    protected _throwNewUrlFunctionInvalid(err: Error): never {
-        throw new Error(`The provided newUrlFunction did not return a valid URL.\nCause: ${err.message}`);
     }
 
     protected _throwCannotCombineCustomMethods(): never {

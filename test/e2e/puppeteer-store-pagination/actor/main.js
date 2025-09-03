@@ -26,7 +26,7 @@ crawler.router.addHandler('START', async ({ log, enqueueLinks, page }) => {
     // enqueue product details from the first three pages of the store
     for (let pageNo = 1; pageNo < 3; pageNo++) {
         // Wait for network events to finish
-        await page.waitForNetworkIdle();
+        await page.waitForNetworkIdle({ concurrency: 2 });
         // Enqueue all loaded links
         await enqueueLinks({
             selector: 'a.product-item__image-wrapper',
@@ -63,11 +63,8 @@ crawler.router.addHandler('DETAIL', async ({ log, page, request: { url } }) => {
     const rawPrice = rawPriceString.split('$')[1];
     const price = Number(rawPrice.replaceAll(',', ''));
 
-    const inStock = await page
-        .locator('span.product-form__inventory')
-        .filter((el) => el.textContent.includes('In stock'))
-        .map((el) => !!el)
-        .wait();
+    const inStockElement = await page.$('span.product-form__inventory');
+    const inStock = (await inStockElement?.evaluate((el) => el.textContent.includes('In stock'))) ?? false;
 
     const results = {
         url,

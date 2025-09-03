@@ -1,18 +1,20 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { KEY_VALUE_STORE_KEY_REGEX } from '@apify/consts';
-import { jsonStringifyExtended } from '@apify/utilities';
 import type { Dictionary, KeyValueStoreClient, StorageClient } from '@crawlee/types';
 import JSON5 from 'json5';
 import ow, { ArgumentError } from 'ow';
 
+import { KEY_VALUE_STORE_KEY_REGEX } from '@apify/consts';
+import log from '@apify/log';
+import { jsonStringifyExtended } from '@apify/utilities';
+
+import { Configuration } from '../configuration';
+import type { Awaitable } from '../typedefs';
 import { checkStorageAccess } from './access_checking';
 import type { StorageManagerOptions } from './storage_manager';
 import { StorageManager } from './storage_manager';
 import { purgeDefaultStorages } from './utils';
-import { Configuration } from '../configuration';
-import type { Awaitable } from '../typedefs';
 
 /**
  * Helper function to possibly stringify value if options.contentType is not set.
@@ -30,7 +32,7 @@ export const maybeStringify = <T>(value: T, options: { contentType?: string }) =
         } catch (e) {
             const error = e as Error;
             // Give more meaningful error message
-            if (error.message?.indexOf('Invalid string length') >= 0) {
+            if (error.message?.includes('Invalid string length')) {
                 error.message = 'Object is too large';
             }
             throw new Error(`The "value" parameter cannot be stringified to JSON: ${error.message}`);
@@ -106,6 +108,7 @@ export const maybeStringify = <T>(value: T, options: { contentType?: string }) =
 export class KeyValueStore {
     readonly id: string;
     readonly name?: string;
+    readonly storageObject?: Record<string, unknown>;
     private readonly client: KeyValueStoreClient;
     private persistStateEventStarted = false;
 
@@ -121,6 +124,7 @@ export class KeyValueStore {
     ) {
         this.id = options.id;
         this.name = options.name;
+        this.storageObject = options.storageObject;
         this.client = options.client.keyValueStore(this.id);
     }
 
@@ -270,10 +274,23 @@ export class KeyValueStore {
             return;
         }
 
+        // use half the interval of `persistState` to avoid race conditions
+        const persistStateIntervalMillis = this.config.get('persistStateIntervalMillis')!;
+        const timeoutSecs = persistStateIntervalMillis / 2_000;
+
         this.config.getEventManager().on('persistState', async () => {
+            const promises: Promise<void>[] = [];
+
             for (const [key, value] of this.cache) {
-                await this.setValue(key, value);
+                promises.push(
+                    this.setValue(key, value, {
+                        timeoutSecs,
+                        doNotRetryTimeouts: true,
+                    }).catch((error) => log.warning(`Failed to persist the state value to ${key}`, { error })),
+                );
             }
+
+            await Promise.all(promises);
         });
 
         this.persistStateEventStarted = true;
@@ -336,7 +353,7 @@ export class KeyValueStore {
         if (
             options.contentType &&
             !(
-                ow.isValid(value, ow.any(ow.string, ow.buffer)) ||
+                ow.isValid(value, ow.any(ow.string, ow.uint8Array)) ||
                 (ow.isValid(value, ow.object) && typeof (value as Dictionary).pipe === 'function')
             )
         ) {
@@ -349,6 +366,8 @@ export class KeyValueStore {
             options,
             ow.object.exactShape({
                 contentType: ow.optional.string.nonEmpty,
+                timeoutSecs: ow.optional.number,
+                doNotRetryTimeouts: ow.optional.boolean,
             }),
         );
 
@@ -377,11 +396,17 @@ export class KeyValueStore {
 
         value = maybeStringify(value, optionsCopy);
 
-        return this.client.setRecord({
-            key,
-            value,
-            contentType: optionsCopy.contentType,
-        });
+        return this.client.setRecord(
+            {
+                key,
+                value,
+                contentType: optionsCopy.contentType,
+            },
+            {
+                timeoutSecs: optionsCopy.timeoutSecs,
+                doNotRetryTimeouts: optionsCopy.doNotRetryTimeouts,
+            },
+        );
     }
 
     /**
@@ -435,22 +460,24 @@ export class KeyValueStore {
         options: KeyValueStoreIteratorOptions = {},
         index = 0,
     ): Promise<void> {
-        const { exclusiveStartKey } = options;
+        const { exclusiveStartKey, prefix, collection } = options;
         ow(iteratee, ow.function);
         ow(
             options,
             ow.object.exactShape({
                 exclusiveStartKey: ow.optional.string,
+                prefix: ow.optional.string,
+                collection: ow.optional.string,
             }),
         );
 
-        const response = await this.client.listKeys({ exclusiveStartKey });
+        const response = await this.client.listKeys({ exclusiveStartKey, prefix, collection });
         const { nextExclusiveStartKey, isTruncated, items } = response;
         for (const item of items) {
             await iteratee(item.key, index++, { size: item.size });
         }
         return isTruncated
-            ? this._forEachKey(iteratee, { exclusiveStartKey: nextExclusiveStartKey }, index)
+            ? this._forEachKey(iteratee, { exclusiveStartKey: nextExclusiveStartKey, prefix, collection }, index)
             : undefined; // [].forEach() returns undefined.
     }
 
@@ -708,6 +735,7 @@ export interface KeyValueStoreOptions {
     id: string;
     name?: string;
     client: StorageClient;
+    storageObject?: Record<string, unknown>;
 }
 
 export interface RecordOptions {
@@ -715,6 +743,16 @@ export interface RecordOptions {
      * Specifies a custom MIME content type of the record.
      */
     contentType?: string;
+
+    /**
+     * Specifies a custom timeout for the `set-record` API call, in seconds.
+     */
+    timeoutSecs?: number;
+
+    /**
+     * If set to `true`, the `set-record` API call will not be retried if it times out.
+     */
+    doNotRetryTimeouts?: boolean;
 }
 
 export interface KeyValueStoreIteratorOptions {
@@ -722,4 +760,12 @@ export interface KeyValueStoreIteratorOptions {
      * All keys up to this one (including) are skipped from the result.
      */
     exclusiveStartKey?: string;
+    /**
+     * If set, only keys that start with this prefix are returned.
+     */
+    prefix?: string;
+    /**
+     * Collection name to use for listing keys.
+     */
+    collection?: string;
 }

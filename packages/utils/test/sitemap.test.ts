@@ -1,7 +1,10 @@
 import nock from 'nock';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Sitemap } from '../src/internals/sitemap';
+import log from '@apify/log';
+
+import type { SitemapUrl } from '../src/internals/sitemap';
+import { parseSitemap, Sitemap } from '../src/internals/sitemap';
 
 describe('Sitemap', () => {
     beforeEach(() => {
@@ -16,7 +19,7 @@ describe('Sitemap', () => {
                     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
                     '<url>',
                     '<loc>http://not-exists.com/</loc>',
-                    '<lastmod>2005-01-01</lastmod>',
+                    '<lastmod>2005-02-03</lastmod>',
                     '<changefreq>monthly</changefreq>',
                     '<priority>0.8</priority>',
                     '</url>',
@@ -116,6 +119,31 @@ describe('Sitemap', () => {
                     '</sitemapindex>',
                 ].join('\n'),
             )
+            .get('/sitemap_parent_pretty.xml')
+            .reply(
+                200,
+                [
+                    '<?xml version="1.0" encoding="UTF-8"?>',
+                    '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+                    '<sitemap>',
+                    `<loc>
+                        http://not-exists.com/sitemap_child.xml
+                    </loc>`,
+                    `<lastmod>
+                        2004-12-23
+                    </lastmod>`,
+                    '</sitemap>',
+                    '<sitemap>',
+                    `<loc>
+                        http://not-exists.com/sitemap_child_2.xml?from=94937939985&amp;to=1318570721404
+                    </loc>`,
+                    `<lastmod>
+                        2004-12-23
+                    </lastmod>`,
+                    '</sitemap>',
+                    '</sitemapindex>',
+                ].join('\n'),
+            )
             .get('/not_actual_xml.xml')
             .reply(
                 200,
@@ -136,6 +164,30 @@ describe('Sitemap', () => {
                     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
                     '<url>',
                     '<loc><![CDATA[http://not-exists.com/catalog]]></loc>',
+                    '</url>',
+                    '</urlset>',
+                ].join('\n'),
+            )
+            .get('/sitemap_pretty.xml')
+            .reply(
+                200,
+                [
+                    '<?xml version="1.0" encoding="UTF-8"?>',
+                    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+                    '<url>',
+                    `<loc>
+                        http://not-exists.com/catalog?item=80&amp;desc=vacation_turkey
+                    </loc>`,
+                    `<lastmod>
+                        2005-02-03
+                    </lastmod>`,
+                    `<changefreq>
+
+                        monthly
+                    </changefreq>`,
+                    `<priority>
+                        0.8
+                    </priority>`,
                     '</url>',
                     '</urlset>',
                 ].join('\n'),
@@ -167,6 +219,12 @@ describe('Sitemap', () => {
             )
             .get('*')
             .reply(404);
+
+        nock('http://not-exists-2.com')
+            .persist()
+            .filteringPath(() => '/')
+            .get('/')
+            .reply(404);
     });
 
     afterEach(() => {
@@ -184,6 +242,24 @@ describe('Sitemap', () => {
                 'http://not-exists.com/catalog?item=74&desc=vacation_newfoundland',
                 'http://not-exists.com/catalog?item=83&desc=vacation_usa',
             ]),
+        );
+    });
+
+    it('extracts metadata from sitemaps', async () => {
+        const items: SitemapUrl[] = [];
+
+        for await (const item of parseSitemap([{ type: 'url', url: 'http://not-exists.com/sitemap_child.xml' }])) {
+            items.push(item);
+        }
+
+        expect(items).toHaveLength(5);
+        expect(items).toContainEqual(
+            expect.objectContaining({
+                loc: 'http://not-exists.com/',
+                priority: 0.8,
+                changefreq: 'monthly',
+                lastmod: new Date('2005-02-03'),
+            }),
         );
     });
 
@@ -240,12 +316,57 @@ describe('Sitemap', () => {
         );
     });
 
+    it('keeps quiet if autodetection does not find anything', async () => {
+        const spy = vi.spyOn(log, 'warning');
+
+        const sitemap = await Sitemap.tryCommonNames('http://not-exists-2.com/arbitrary_url?search=xyz');
+
+        expect(sitemap.urls).toHaveLength(0);
+        expect(spy).not.toHaveBeenCalled();
+    });
+
     it('handles sitemap.txt correctly', async () => {
         const sitemap = await Sitemap.load('http://not-exists.com/sitemap.txt');
         expect(new Set(sitemap.urls)).toEqual(
             new Set([
                 'http://not-exists.com/catalog?item=78&desc=vacation_crete',
                 'http://not-exists.com/catalog?item=79&desc=vacation_somalia',
+            ]),
+        );
+    });
+
+    it('handles pretty-printed XML correctly', async () => {
+        const sitemap = await Sitemap.load('http://not-exists.com/sitemap_pretty.xml');
+        expect(new Set(sitemap.urls)).toEqual(new Set(['http://not-exists.com/catalog?item=80&desc=vacation_turkey']));
+    });
+
+    it('extracts metadata from pretty-printed XML', async () => {
+        const items: SitemapUrl[] = [];
+
+        for await (const item of parseSitemap([{ type: 'url', url: 'http://not-exists.com/sitemap_pretty.xml' }])) {
+            items.push(item);
+        }
+
+        expect(items).toHaveLength(1);
+        expect(items).toContainEqual(
+            expect.objectContaining({
+                loc: 'http://not-exists.com/catalog?item=80&desc=vacation_turkey',
+                priority: 0.8,
+                changefreq: 'monthly',
+                lastmod: new Date('2005-02-03'),
+            }),
+        );
+    });
+
+    it('handles pretty-printed nested sitemaps XML correctly', async () => {
+        const sitemap = await Sitemap.load('http://not-exists.com/sitemap_parent_pretty.xml');
+        expect(new Set(sitemap.urls)).toEqual(
+            new Set([
+                'http://not-exists.com/',
+                'http://not-exists.com/catalog?item=12&desc=vacation_hawaii',
+                'http://not-exists.com/catalog?item=73&desc=vacation_new_zealand',
+                'http://not-exists.com/catalog?item=74&desc=vacation_newfoundland',
+                'http://not-exists.com/catalog?item=83&desc=vacation_usa',
             ]),
         );
     });

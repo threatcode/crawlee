@@ -3,6 +3,284 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.14.1](https://github.com/apify/crawlee/compare/v3.14.0...v3.14.1) (2025-08-05)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+# [3.14.0](https://github.com/apify/crawlee/compare/v3.13.10...v3.14.0) (2025-07-25)
+
+
+### Bug Fixes
+
+* validation of iterables when adding requests to the queue ([#3091](https://github.com/apify/crawlee/issues/3091)) ([529a1dd](https://github.com/apify/crawlee/commit/529a1dd57278efef4fb2013e79a09fd1bc8594a5)), closes [#3063](https://github.com/apify/crawlee/issues/3063)
+
+
+
+
+
+## [3.13.10](https://github.com/apify/crawlee/compare/v3.13.9...v3.13.10) (2025-07-09)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+## [3.13.9](https://github.com/apify/crawlee/compare/v3.13.8...v3.13.9) (2025-06-27)
+
+
+### Bug Fixes
+
+* Do not log 'malformed sitemap content' on network errors in `Sitemap.tryCommonNames` ([#3015](https://github.com/apify/crawlee/issues/3015)) ([64a090f](https://github.com/apify/crawlee/commit/64a090ffbba5c69730ec0616e415a1eadf4bc7b3)), closes [#2884](https://github.com/apify/crawlee/issues/2884)
+
+
+### Features
+
+* Accept (Async)Iterables in `addRequests` methods ([#3013](https://github.com/apify/crawlee/issues/3013)) ([a4ab748](https://github.com/apify/crawlee/commit/a4ab74852c3c60bdbc96035f54b16d125220f699)), closes [#2980](https://github.com/apify/crawlee/issues/2980)
+
+
+
+
+
+## [3.13.8](https://github.com/apify/crawlee/compare/v3.13.7...v3.13.8) (2025-06-16)
+
+
+### Bug Fixes
+
+* Persist rendering type detection results in `AdaptivePlaywrightCrawler` ([#2987](https://github.com/apify/crawlee/issues/2987)) ([76431ba](https://github.com/apify/crawlee/commit/76431badf8a55892303d9b53fe23e029fad9cb18)), closes [#2899](https://github.com/apify/crawlee/issues/2899)
+
+
+
+
+
+## [3.13.7](https://github.com/apify/crawlee/compare/v3.13.6...v3.13.7) (2025-06-06)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+## [3.13.6](https://github.com/apify/crawlee/compare/v3.13.5...v3.13.6) (2025-06-05)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+## [3.13.5](https://github.com/apify/crawlee/compare/v3.13.4...v3.13.5) (2025-05-20)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+## [3.13.4](https://github.com/apify/crawlee/compare/v3.13.3...v3.13.4) (2025-05-14)
+
+
+### Bug Fixes
+
+* **social:** extract emails from each text node separately ([#2952](https://github.com/apify/crawlee/issues/2952)) ([799afc1](https://github.com/apify/crawlee/commit/799afc1dbb6843efa9d585823674ea75b9b352ea))
+
+
+
+
+
+## [3.13.3](https://github.com/apify/crawlee/compare/v3.13.2...v3.13.3) (2025-05-05)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+## [3.13.2](https://github.com/apify/crawlee/compare/v3.13.1...v3.13.2) (2025-04-08)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+## [3.13.1](https://github.com/apify/crawlee/compare/v3.13.0...v3.13.1) (2025-04-07)
+
+
+### Bug Fixes
+
+* rename `RobotsFile` to `RobotsTxtFile` ([#2913](https://github.com/apify/crawlee/issues/2913)) ([3160f71](https://github.com/apify/crawlee/commit/3160f717e865326476d78089d778cbc7d35aa58d)), closes [#2910](https://github.com/apify/crawlee/issues/2910)
+
+
+### Features
+
+* add `respectRobotsTxtFile` crawler option ([#2910](https://github.com/apify/crawlee/issues/2910)) ([0eabed1](https://github.com/apify/crawlee/commit/0eabed1f13070d902c2c67b340621830a7f64464))
+
+
+
+
+
+# [3.13.0](https://github.com/apify/crawlee/compare/v3.12.2...v3.13.0) (2025-03-04)
+
+
+### Features
+
+* improved cross platform metric collection ([#2834](https://github.com/apify/crawlee/issues/2834)) ([e41b2f7](https://github.com/apify/crawlee/commit/e41b2f744513dd80aa05336eedfa1c08c54d3832)), closes [#2771](https://github.com/apify/crawlee/issues/2771)
+
+
+
+
+
+## [3.12.2](https://github.com/apify/crawlee/compare/v3.12.1...v3.12.2) (2025-01-27)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+## [3.12.1](https://github.com/apify/crawlee/compare/v3.12.0...v3.12.1) (2024-12-04)
+
+
+### Bug Fixes
+
+* **social:** support new URL formats for Facebook, YouTube and X ([#2758](https://github.com/apify/crawlee/issues/2758)) ([4c95847](https://github.com/apify/crawlee/commit/4c95847d5cedd6514620ccab31d5b242ba76de80)), closes [#525](https://github.com/apify/crawlee/issues/525)
+
+
+
+
+
+# [3.12.0](https://github.com/apify/crawlee/compare/v3.11.5...v3.12.0) (2024-11-04)
+
+
+### Bug Fixes
+
+* `.trim()` urls from pretty-printed sitemap.xml files ([#2709](https://github.com/apify/crawlee/issues/2709)) ([802a6fe](https://github.com/apify/crawlee/commit/802a6fea7b2125e2b36d740fc2d5d131de5d53ed)), closes [#2698](https://github.com/apify/crawlee/issues/2698)
+
+
+### Features
+
+* allow using other HTTP clients ([#2661](https://github.com/apify/crawlee/issues/2661)) ([568c655](https://github.com/apify/crawlee/commit/568c6556d79ce91654c8a715d1d1729d7d6ed8ef)), closes [#2659](https://github.com/apify/crawlee/issues/2659)
+
+
+
+
+
+## [3.11.5](https://github.com/apify/crawlee/compare/v3.11.4...v3.11.5) (2024-10-04)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+## [3.11.4](https://github.com/apify/crawlee/compare/v3.11.3...v3.11.4) (2024-09-23)
+
+
+### Bug Fixes
+
+* `SitemapRequestList.teardown()` doesn't break `persistState` calls ([#2673](https://github.com/apify/crawlee/issues/2673)) ([fb2c5cd](https://github.com/apify/crawlee/commit/fb2c5cdaa47e2d3a91ade726cfba3091917a0137)), closes [/github.com/apify/crawlee/blob/f3eb99d9fa9a7aa0ec1dcb9773e666a9ac14fb76/packages/core/src/storages/sitemap_request_list.ts#L446](https://github.com//github.com/apify/crawlee/blob/f3eb99d9fa9a7aa0ec1dcb9773e666a9ac14fb76/packages/core/src/storages/sitemap_request_list.ts/issues/L446) [#2672](https://github.com/apify/crawlee/issues/2672)
+
+
+
+
+
+## [3.11.3](https://github.com/apify/crawlee/compare/v3.11.2...v3.11.3) (2024-09-03)
+
+
+### Bug Fixes
+
+* improve `FACEBOOK_REGEX` to match older style page URLs ([#2650](https://github.com/apify/crawlee/issues/2650)) ([a005e69](https://github.com/apify/crawlee/commit/a005e699682cbf4bb2e48ff92cf2bbf3e0d2be26)), closes [#2216](https://github.com/apify/crawlee/issues/2216)
+
+
+
+
+
+## [3.11.2](https://github.com/apify/crawlee/compare/v3.11.1...v3.11.2) (2024-08-28)
+
+
+### Bug Fixes
+
+* use namespace imports for cheerio to be compatible with v1 ([#2641](https://github.com/apify/crawlee/issues/2641)) ([f48296f](https://github.com/apify/crawlee/commit/f48296f6cba7b81fe102d4b874505c27f93d9fc1))
+
+
+### Features
+
+* resilient sitemap loading ([#2619](https://github.com/apify/crawlee/issues/2619)) ([1dd7660](https://github.com/apify/crawlee/commit/1dd76601e03de4541964116b3a77376e233ea22b))
+
+
+
+
+
+## [3.11.1](https://github.com/apify/crawlee/compare/v3.11.0...v3.11.1) (2024-07-24)
+
+
+### Bug Fixes
+
+* use `getHTML` in the shadow root expansion ([#2587](https://github.com/apify/crawlee/issues/2587)) ([a244d62](https://github.com/apify/crawlee/commit/a244d62cca03d628677eca8a5adcf41e33c51dee)), closes [#2583](https://github.com/apify/crawlee/issues/2583)
+
+
+
+
+
+# [3.11.0](https://github.com/apify/crawlee/compare/v3.10.5...v3.11.0) (2024-07-09)
+
+
+### Features
+
+* Sitemap-based request list implementation ([#2498](https://github.com/apify/crawlee/issues/2498)) ([7bf8f0b](https://github.com/apify/crawlee/commit/7bf8f0bcd4cc81e02c7cc60e82dfe7a0cdd80938))
+
+
+
+
+
+## [3.10.5](https://github.com/apify/crawlee/compare/v3.10.4...v3.10.5) (2024-06-12)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+## [3.10.4](https://github.com/apify/crawlee/compare/v3.10.3...v3.10.4) (2024-06-11)
+
+**Note:** Version bump only for package @crawlee/utils
+
+
+
+
+
+## [3.10.3](https://github.com/apify/crawlee/compare/v3.10.2...v3.10.3) (2024-06-07)
+
+
+### Bug Fixes
+
+* respect implicit router when no `requestHandler` is provided in `AdaptiveCrawler` ([#2518](https://github.com/apify/crawlee/issues/2518)) ([31083aa](https://github.com/apify/crawlee/commit/31083aa27ddd51827f73c7ac4290379ec7a81283))
+
+
+
+
+
+## [3.10.2](https://github.com/apify/crawlee/compare/v3.10.1...v3.10.2) (2024-06-03)
+
+
+### Bug Fixes
+
+* Autodetect sitemap filetype from content ([#2497](https://github.com/apify/crawlee/issues/2497)) ([62a9f40](https://github.com/apify/crawlee/commit/62a9f4036dba92d07547af489ac8b6c7974faa6f)), closes [#2461](https://github.com/apify/crawlee/issues/2461)
+
+
+### Features
+
+* Loading sitemaps from string ([#2496](https://github.com/apify/crawlee/issues/2496)) ([38ed0d6](https://github.com/apify/crawlee/commit/38ed0d6ad90a868df9c02632334fec8db9ef29a0)), closes [#2460](https://github.com/apify/crawlee/issues/2460)
+
+
+
+
+
 ## [3.10.1](https://github.com/apify/crawlee/compare/v3.10.0...v3.10.1) (2024-05-23)
 
 

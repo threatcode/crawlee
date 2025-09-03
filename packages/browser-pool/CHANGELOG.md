@@ -3,6 +3,232 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [3.14.1](https://github.com/apify/crawlee/compare/v3.14.0...v3.14.1) (2025-08-05)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+# [3.14.0](https://github.com/apify/crawlee/compare/v3.13.10...v3.14.0) (2025-07-25)
+
+
+### Bug Fixes
+
+* don't retire browsers with long-running `pre|postLaunchHooks` prematurely ([#3062](https://github.com/apify/crawlee/issues/3062)) ([681660e](https://github.com/apify/crawlee/commit/681660e35a1ceaca5e96a7f61d5a7c66ec32bcde))
+
+
+
+
+
+## [3.13.10](https://github.com/apify/crawlee/compare/v3.13.9...v3.13.10) (2025-07-09)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.13.9](https://github.com/apify/crawlee/compare/v3.13.8...v3.13.9) (2025-06-27)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.13.8](https://github.com/apify/crawlee/compare/v3.13.7...v3.13.8) (2025-06-16)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.13.7](https://github.com/apify/crawlee/compare/v3.13.6...v3.13.7) (2025-06-06)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.13.6](https://github.com/apify/crawlee/compare/v3.13.5...v3.13.6) (2025-06-05)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.13.5](https://github.com/apify/crawlee/compare/v3.13.4...v3.13.5) (2025-05-20)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.13.4](https://github.com/apify/crawlee/compare/v3.13.3...v3.13.4) (2025-05-14)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.13.3](https://github.com/apify/crawlee/compare/v3.13.2...v3.13.3) (2025-05-05)
+
+
+### Bug Fixes
+
+* await `_createPageForBrowser` in browser pool ([#2950](https://github.com/apify/crawlee/issues/2950)) ([27ba74b](https://github.com/apify/crawlee/commit/27ba74bacfcaa0467e7d97eb27d6a9c1d9cea9be)), closes [#2789](https://github.com/apify/crawlee/issues/2789)
+* Fix trailing slash removal in BrowserPool ([#2921](https://github.com/apify/crawlee/issues/2921)) ([c1fc439](https://github.com/apify/crawlee/commit/c1fc439e8e9cf74808912c66a1915f1bfd345b5f)), closes [#2878](https://github.com/apify/crawlee/issues/2878)
+
+
+
+
+
+## [3.13.2](https://github.com/apify/crawlee/compare/v3.13.1...v3.13.2) (2025-04-08)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.13.1](https://github.com/apify/crawlee/compare/v3.13.0...v3.13.1) (2025-04-07)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+# [3.13.0](https://github.com/apify/crawlee/compare/v3.12.2...v3.13.0) (2025-03-04)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.12.2](https://github.com/apify/crawlee/compare/v3.12.1...v3.12.2) (2025-01-27)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.12.1](https://github.com/apify/crawlee/compare/v3.12.0...v3.12.1) (2024-12-04)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+# [3.12.0](https://github.com/apify/crawlee/compare/v3.11.5...v3.12.0) (2024-11-04)
+
+
+### Bug Fixes
+
+* update `fingerprintGeneratorOptions` types ([#2705](https://github.com/apify/crawlee/issues/2705)) ([fcb098d](https://github.com/apify/crawlee/commit/fcb098d6357b69e6d1790765076e4fe4146c8143)), closes [/github.com/apify/fingerprint-suite/blob/c61814e6ba8822543deb0ce6c03e0a0249933629/packages/fingerprint-generator/src/fingerprint-generator.ts#L73](https://github.com//github.com/apify/fingerprint-suite/blob/c61814e6ba8822543deb0ce6c03e0a0249933629/packages/fingerprint-generator/src/fingerprint-generator.ts/issues/L73) [/github.com/apify/fingerprint-suite/blob/c61814e6ba8822543deb0ce6c03e0a0249933629/packages/header-generator/src/header-generator.ts#L87](https://github.com//github.com/apify/fingerprint-suite/blob/c61814e6ba8822543deb0ce6c03e0a0249933629/packages/header-generator/src/header-generator.ts/issues/L87) [#2703](https://github.com/apify/crawlee/issues/2703)
+
+
+### Features
+
+* allow using other HTTP clients ([#2661](https://github.com/apify/crawlee/issues/2661)) ([568c655](https://github.com/apify/crawlee/commit/568c6556d79ce91654c8a715d1d1729d7d6ed8ef)), closes [#2659](https://github.com/apify/crawlee/issues/2659)
+
+
+
+
+
+## [3.11.5](https://github.com/apify/crawlee/compare/v3.11.4...v3.11.5) (2024-10-04)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.11.4](https://github.com/apify/crawlee/compare/v3.11.3...v3.11.4) (2024-09-23)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.11.3](https://github.com/apify/crawlee/compare/v3.11.2...v3.11.3) (2024-09-03)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.11.2](https://github.com/apify/crawlee/compare/v3.11.1...v3.11.2) (2024-08-28)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.11.1](https://github.com/apify/crawlee/compare/v3.11.0...v3.11.1) (2024-07-24)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+# [3.11.0](https://github.com/apify/crawlee/compare/v3.10.5...v3.11.0) (2024-07-09)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.10.5](https://github.com/apify/crawlee/compare/v3.10.4...v3.10.5) (2024-06-12)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.10.4](https://github.com/apify/crawlee/compare/v3.10.3...v3.10.4) (2024-06-11)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
+## [3.10.3](https://github.com/apify/crawlee/compare/v3.10.2...v3.10.3) (2024-06-07)
+
+
+### Bug Fixes
+
+* increase timeout for retiring inactive browsers ([#2523](https://github.com/apify/crawlee/issues/2523)) ([195f176](https://github.com/apify/crawlee/commit/195f1766a03293db19caa33f9fc3d4ab08081f71))
+
+
+
+
+
+## [3.10.2](https://github.com/apify/crawlee/compare/v3.10.1...v3.10.2) (2024-06-03)
+
+**Note:** Version bump only for package @crawlee/browser-pool
+
+
+
+
+
 ## [3.10.1](https://github.com/apify/crawlee/compare/v3.10.0...v3.10.1) (2024-05-23)
 
 **Note:** Version bump only for package @crawlee/browser-pool
@@ -111,7 +337,7 @@ See [Conventional Commits](https://conventionalcommits.org) for commit guideline
 
 ### Bug Fixes
 
-* **browser-pool:** respect user options before assigning fingerpints ([#2190](https://github.com/apify/crawlee/issues/2190)) ([f050776](https://github.com/apify/crawlee/commit/f050776a916a0530aca6727a447a49252e643417)), closes [#2164](https://github.com/apify/crawlee/issues/2164)
+* **browser-pool:** respect user options before assigning fingerprints ([#2190](https://github.com/apify/crawlee/issues/2190)) ([f050776](https://github.com/apify/crawlee/commit/f050776a916a0530aca6727a447a49252e643417)), closes [#2164](https://github.com/apify/crawlee/issues/2164)
 
 
 

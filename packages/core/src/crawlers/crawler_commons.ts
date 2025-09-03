@@ -1,6 +1,6 @@
-import type { Dictionary, BatchAddRequestsResult } from '@crawlee/types';
+import type { BatchAddRequestsResult, Dictionary } from '@crawlee/types';
 // @ts-expect-error This throws a compilation error due to got-scraping being ESM only but we only import types, so its alllll gooooood
-import type { Response as GotResponse, OptionsInit } from 'got-scraping';
+import type { OptionsInit, Response as GotResponse } from 'got-scraping';
 import type { ReadonlyDeep } from 'type-fest';
 
 import type { Configuration } from '../configuration';
@@ -9,13 +9,36 @@ import type { Log } from '../log';
 import type { ProxyInfo } from '../proxy_configuration';
 import type { Request, Source } from '../request';
 import type { Session } from '../session_pool/session';
-import type { RequestQueueOperationOptions, Dataset, RecordOptions } from '../storages';
+import type { Dataset, RecordOptions, RequestQueueOperationOptions } from '../storages';
 import { KeyValueStore } from '../storages';
+
+/** @internal */
+export type IsAny<T> = 0 extends 1 & T ? true : false;
+
+/** @internal */
+export type WithRequired<T, K extends keyof T> = T & { [P in K]-?: T[P] };
+
+export type LoadedRequest<R extends Request> = WithRequired<R, 'id' | 'loadedUrl'>;
+
+/** @internal */
+export type LoadedContext<Context extends RestrictedCrawlingContext> = IsAny<Context> extends true
+    ? Context
+    : {
+          request: LoadedRequest<Context['request']>;
+      } & Omit<Context, 'request'>;
 
 export interface RestrictedCrawlingContext<UserData extends Dictionary = Dictionary>
     // we need `Record<string & {}, unknown>` here, otherwise `Omit<Context>` is resolved badly
-    // eslint-disable-next-line
     extends Record<string & {}, unknown> {
+    id: string;
+    session?: Session;
+
+    /**
+     * An object with information about currently used proxy by the crawler
+     * and configured by the {@apilink ProxyConfiguration} class.
+     */
+    proxyInfo?: ProxyInfo;
+
     /**
      * The original {@apilink Request} object.
      */
@@ -37,7 +60,7 @@ export interface RestrictedCrawlingContext<UserData extends Dictionary = Diction
      * Optionally, the function allows you to filter the target links' URLs using an array of globs or regular expressions
      * and override settings of the enqueued {@apilink Request} objects.
      *
-     * Check out the [Crawl a website with relative links](https://crawlee.dev/docs/examples/crawl-relative-links) example
+     * Check out the [Crawl a website with relative links](https://crawlee.dev/js/docs/examples/crawl-relative-links) example
      * for more details regarding its usage.
      *
      * **Example usage**
@@ -77,7 +100,7 @@ export interface RestrictedCrawlingContext<UserData extends Dictionary = Diction
      */
     getKeyValueStore: (
         idOrName?: string,
-    ) => Promise<Pick<KeyValueStore, 'id' | 'name' | 'getValue' | 'getAutoSavedValue' | 'setValue'>>;
+    ) => Promise<Pick<KeyValueStore, 'id' | 'name' | 'getValue' | 'getAutoSavedValue' | 'setValue' | 'getPublicUrl'>>;
 
     /**
      * A preconfigured logger for the request handler.
@@ -87,15 +110,6 @@ export interface RestrictedCrawlingContext<UserData extends Dictionary = Diction
 
 export interface CrawlingContext<Crawler = unknown, UserData extends Dictionary = Dictionary>
     extends RestrictedCrawlingContext<UserData> {
-    id: string;
-    session?: Session;
-
-    /**
-     * An object with information about currently used proxy by the crawler
-     * and configured by the {@apilink ProxyConfiguration} class.
-     */
-    proxyInfo?: ProxyInfo;
-
     crawler: Crawler;
 
     /**
@@ -105,7 +119,7 @@ export interface CrawlingContext<Crawler = unknown, UserData extends Dictionary 
      * Optionally, the function allows you to filter the target links' URLs using an array of globs or regular expressions
      * and override settings of the enqueued {@apilink Request} objects.
      *
-     * Check out the [Crawl a website with relative links](https://crawlee.dev/docs/examples/crawl-relative-links) example
+     * Check out the [Crawl a website with relative links](https://crawlee.dev/js/docs/examples/crawl-relative-links) example
      * for more details regarding its usage.
      *
      * **Example usage**
@@ -133,11 +147,11 @@ export interface CrawlingContext<Crawler = unknown, UserData extends Dictionary 
     getKeyValueStore: (idOrName?: string) => Promise<KeyValueStore>;
 
     /**
-     * Fires HTTP request via [`got-scraping`](https://crawlee.dev/docs/guides/got-scraping), allowing to override the request
+     * Fires HTTP request via [`got-scraping`](https://crawlee.dev/js/docs/guides/got-scraping), allowing to override the request
      * options on the fly.
      *
      * This is handy when you work with a browser crawler but want to execute some requests outside it (e.g. API requests).
-     * Check the [Skipping navigations for certain requests](https://crawlee.dev/docs/examples/skip-navigation) example for
+     * Check the [Skipping navigations for certain requests](https://crawlee.dev/js/docs/examples/skip-navigation) example for
      * more detailed explanation of how to do that.
      *
      * ```ts
@@ -165,8 +179,6 @@ export class RequestHandlerResult {
 
     private addRequestsCalls: Parameters<RestrictedCrawlingContext['addRequests']>[] = [];
 
-    private enqueueLinksCalls: Parameters<RestrictedCrawlingContext['enqueueLinks']>[] = [];
-
     constructor(
         private config: Configuration,
         private crawleeStateKey: string,
@@ -178,12 +190,10 @@ export class RequestHandlerResult {
     get calls(): ReadonlyDeep<{
         pushData: Parameters<RestrictedCrawlingContext['pushData']>[];
         addRequests: Parameters<RestrictedCrawlingContext['addRequests']>[];
-        enqueueLinks: Parameters<RestrictedCrawlingContext['enqueueLinks']>[];
     }> {
         return {
             pushData: this.pushDataCalls,
             addRequests: this.addRequestsCalls,
-            enqueueLinks: this.enqueueLinksCalls,
         };
     }
 
@@ -210,10 +220,6 @@ export class RequestHandlerResult {
      */
     get enqueuedUrls(): ReadonlyDeep<{ url: string; label?: string }[]> {
         const result: { url: string; label?: string }[] = [];
-
-        for (const [options] of this.enqueueLinksCalls) {
-            result.push(...(options?.urls?.map((url) => ({ url, label: options?.label })) ?? []));
-        }
 
         for (const [requests] of this.addRequestsCalls) {
             for (const request of requests) {
@@ -257,10 +263,6 @@ export class RequestHandlerResult {
         this.pushDataCalls.push([data, datasetIdOrName]);
     };
 
-    enqueueLinks: RestrictedCrawlingContext['enqueueLinks'] = async (options) => {
-        this.enqueueLinksCalls.push([options]);
-    };
-
     addRequests: RestrictedCrawlingContext['addRequests'] = async (requests, options = {}) => {
         this.addRequestsCalls.push([requests, options]);
     };
@@ -277,18 +279,11 @@ export class RequestHandlerResult {
             id: this.idOrDefault(idOrName),
             name: idOrName,
             getValue: async (key) => this.getKeyValueStoreChangedValue(idOrName, key) ?? (await store.getValue(key)),
-            getAutoSavedValue: async <T extends Dictionary = Dictionary>(key: string, defaultValue: T = {} as T) => {
-                let value = this.getKeyValueStoreChangedValue(idOrName, key);
-                if (value === null) {
-                    value = (await store.getValue(key)) ?? defaultValue;
-                    this.setKeyValueStoreChangedValue(idOrName, key, value);
-                }
-
-                return value as T;
-            },
             setValue: async (key, value, options) => {
                 this.setKeyValueStoreChangedValue(idOrName, key, value, options);
             },
+            getAutoSavedValue: store.getAutoSavedValue.bind(store),
+            getPublicUrl: store.getPublicUrl.bind(store),
         };
     };
 
